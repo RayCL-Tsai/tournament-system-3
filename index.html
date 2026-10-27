@@ -135,7 +135,7 @@
                         :class="activeTab === 'standings' ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'"
                         class="px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">
                     <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
-                    即時排行榜 (Standings)
+                    <span x-text="tournamentMode === 'knockout' ? '淘汰賽對戰樹狀圖 (Bracket)' : '即時排行榜 (Standings)'"></span>
                 </button>
                 <button x-show="isHost" @click="activeTab = 'settings'" 
                         :class="activeTab === 'settings' ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'"
@@ -146,23 +146,125 @@
             </div>
 
             <div class="flex items-center gap-3">
+                <button @click="isHost = !isHost" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-brand-400 border border-slate-700 rounded-xl text-sm font-semibold transition flex items-center gap-1.5">
+                    <i data-lucide="repeat" class="w-4 h-4"></i>
+                    <span x-text="isHost ? '切換至觀眾視角' : '切換至主控端'"></span>
+                </button>
                 <button @click="window.print()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-sm font-semibold transition flex items-center gap-1.5">
                     <i data-lucide="printer" class="w-4 h-4"></i>
                     列印/匯出 PDF
                 </button>
             </div>
         </div>
+        <!-- TAB 2: STANDINGS / BRACKET VIEW -->
+        <div x-show="activeTab === 'standings'" class="space-y-6">
+            
+            <!-- Knockout Bracket Visualizer -->
+            <template x-if="tournamentMode === 'knockout'">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl overflow-x-auto">
+                    <div class="mb-6 flex items-center justify-between border-b border-slate-800 pb-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i data-lucide="git-merge" class="w-5 h-5 text-brand-400"></i>
+                                單淘汰賽對戰樹狀圖 (Tournament Bracket)
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-1">即時同步各輪晉級隊伍與比分樹狀結構</p>
+                        </div>
+                    </div>
 
-        <!-- TAB 1: MATCHES VIEW -->
-        <div x-show="activeTab === 'matches'" class="space-y-6">
-            <!-- Round Header & Actions -->
-            <div class="flex items-center justify-between bg-slate-900/60 p-4 rounded-2xl border border-slate-800 no-print">
-                <div>
-                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                        <span x-text="currentStageType === 'round_robin' ? '循環決賽階段' : ('第 ' + currentRound + ' 輪對戰')"></span>
-                    </h2>
-                    <p class="text-xs text-slate-400 mt-0.5" x-text="tournamentMode === 'swiss' ? '依同分位對戰避開重複對手' : '單淘汰/循環晉級模式'"></p>
+                    <div class="flex gap-8 min-w-[700px] py-4 items-center justify-start">
+                        <template x-for="(roundData, rIdx) in bracketRounds" :key="rIdx">
+                            <div class="flex-1 flex flex-col justify-around gap-6 min-w-[180px]">
+                                <div class="text-center font-bold text-xs text-brand-400 uppercase tracking-wider bg-slate-950/60 py-1.5 rounded-lg border border-slate-800/80 mb-2">
+                                    <span x-text="roundData.title"></span>
+                                </div>
+                                
+                                <template x-for="match in roundData.matches" :key="match.id">
+                                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-lg relative flex flex-col justify-center gap-1.5 transition hover:border-brand-500/50">
+                                        <!-- Player 1 -->
+                                        <div class="flex items-center justify-between text-xs px-2 py-1.5 rounded"
+                                             :class="match.winner === match.player1?.id ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30' : 'bg-slate-900 text-slate-300'">
+                                            <span class="truncate" x-text="match.player1 ? match.player1.name : 'TBD'"></span>
+                                            <template x-if="match.winner === match.player1?.id">
+                                                <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                            </template>
+                                        </div>
+                                        <!-- Player 2 -->
+                                        <div class="flex items-center justify-between text-xs px-2 py-1.5 rounded"
+                                             :class="match.winner === match.player2?.id ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30' : 'bg-slate-900 text-slate-300'">
+                                            <span class="truncate" x-text="match.player2 ? match.player2.name : 'TBD'"></span>
+                                            <template x-if="match.winner === match.player2?.id">
+                                                <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
                 </div>
+            </template>
+
+            <!-- Standard Swiss / Leaderboard View -->
+            <template x-if="tournamentMode !== 'knockout'">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+                    <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i data-lucide="trophy" class="w-5 h-5 text-amber-400"></i>
+                                即時戰績排行榜 (Live Standings)
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-1">同分排序標準：1.總勝場(積分) ➔ 2.Buchholz小分(對手總勝場) ➔ 3.淨勝分差(Diff) ➔ 4.總得分</p>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-950/60 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                                    <th class="py-3.5 px-4 font-semibold text-center w-16">排名</th>
+                                    <th class="py-3.5 px-4 font-semibold">選手名稱</th>
+                                    <th class="py-3.5 px-4 font-semibold text-center">戰績 (勝 - 敗)</th>
+                                    <th class="py-3.5 px-4 font-semibold text-center">總積分</th>
+                                    <th class="py-3.5 px-4 font-semibold text-center">Buchholz (小分)</th>
+                                    <th class="py-3.5 px-4 font-semibold text-center">淨勝分 (Diff)</th>
+                                    <th class="py-3.5 px-4 font-semibold text-center">總得分 / 總失分</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/60 text-sm">
+                                <template x-for="(player, idx) in sortedStandings" :key="player.id">
+                                    <tr class="hover:bg-slate-800/40 transition"
+                                        :class="idx < 4 ? 'bg-amber-500/5' : ''">
+                                        <td class="py-3.5 px-4 text-center font-bold">
+                                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs"
+                                                  :class="{
+                                                      'bg-amber-400 text-slate-950 font-black': idx === 0,
+                                                      'bg-slate-300 text-slate-950 font-bold': idx === 1,
+                                                      'bg-amber-700 text-white font-bold': idx === 2,
+                                                      'bg-slate-800 text-slate-400': idx > 2
+                                                  }" x-text="idx + 1"></span>
+                                        </td>
+                                        <td class="py-3.5 px-4 font-bold text-white">
+                                            <span x-text="player.name"></span>
+                                            <template x-if="player.isEliminated">
+                                                <span class="ml-2 text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">已淘汰</span>
+                                            </template>
+                                        </td>
+                                        <td class="py-3.5 px-4 text-center font-medium text-slate-300" x-text="player.wins + ' 勝 - ' + player.losses + ' 敗'"></td>
+                                        <td class="py-3.5 px-4 text-center font-black text-brand-400 text-base" x-text="player.points"></td>
+                                        <td class="py-3.5 px-4 text-center font-semibold text-amber-300" x-text="player.buchholz"></td>
+                                        <td class="py-3.5 px-4 text-center font-semibold" 
+                                            :class="player.pointDiff > 0 ? 'text-emerald-400' : (player.pointDiff < 0 ? 'text-rose-400' : 'text-slate-400')"
+                                            x-text="(player.pointDiff > 0 ? '+' : '') + player.pointDiff"></td>
+                                        <td class="py-3.5 px-4 text-center text-xs text-slate-400" x-text="player.scoresFor + ' / ' + player.scoresAgainst"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+        </div>
 
                 <div x-show="isHost" class="flex items-center gap-3">
                     <button @click="nextRound()" 
@@ -431,7 +533,7 @@
                 },
 
                 init() {
-                    // Check URL params for mode and room accurately
+                    // Correct parameter inspection for viewer mode
                     const urlParams = new URLSearchParams(window.location.search);
                     const mode = urlParams.get('mode');
                     
@@ -446,6 +548,27 @@
                     
                     // Re-render Lucide icons
                     this.$nextTick(() => { lucide.createIcons(); });
+                },
+
+                get bracketRounds() {
+                    if (this.tournamentMode !== 'knockout') return [];
+                    
+                    const rounds = [];
+                    // Populate from history
+                    this.roundsHistory.forEach((rh, idx) => {
+                        rounds.push({
+                            title: `第 ${idx + 1} 輪`,
+                            matches: rh.matches
+                        });
+                    });
+
+                    // Add current round
+                    rounds.push({
+                        title: `第 ${this.currentRound} 輪 (目前進行中)`,
+                        matches: this.currentRoundMatches
+                    });
+
+                    return rounds;
                 },
 
                 get isLastRound() {
@@ -786,14 +909,14 @@
                     
                     const urlString = url.toString();
                     
-                    // Standard fallback copy method
+                    // standard fallback copy method
                     const textArea = document.createElement("textarea");
                     textArea.value = urlString;
                     document.body.appendChild(textArea);
                     textArea.select();
                     try {
                         document.execCommand('copy');
-                        this.showNotification(toViewer ? '已成功複製「觀眾檢視連結」！' : '已成功複製「主控端連結」！');
+                        this.showNotification(toViewer ? '已成功複製「觀眾檢視連結」！點擊上方按鈕也可直接切換。' : '已成功複製「主控端連結」！');
                     } catch (err) {
                         console.error('Copy failed', err);
                     }
