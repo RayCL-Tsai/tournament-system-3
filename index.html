@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業賽事管理系統 (瑞士制 & 單淘汰賽)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        [x-cloak] { display: none !important; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white !important; color: black !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white"
+      x-data="tournamentApp()" x-init="init()">
+
+    <!-- Custom Toast / Notification Modal (No native alert) -->
+    <div x-show="toast.show" x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 translate-y-2"
+         class="fixed bottom-5 right-5 z-50 bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl flex items-center gap-3">
+        <i data-lucide="info" class="w-5 h-5 text-brand-400"></i>
+        <span class="text-sm font-medium" x-text="toast.message"></span>
+        <button @click="toast.show = false" class="text-slate-400 hover:text-white ml-2 text-xs font-bold">✕</button>
+    </div>
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-brand-500/10 p-2 rounded-xl border border-brand-500/20 text-brand-400">
+                    <i data-lucide="trophy" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-none text-white">賽事管理系統</h1>
+                    <span class="text-xs text-slate-400 font-medium" x-text="tournamentName"></span>
+                </div>
+            </div>
+
+            <!-- Host / Viewer Toggle Indicator -->
+            <div class="flex items-center gap-2">
+                <template x-if="isHost">
+                    <span class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-full text-xs font-semibold flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                        主控端 (Host Mode)
+                    </span>
+                </template>
+                <template x-if="!isHost">
+                    <span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-semibold flex items-center gap-1.5">
+                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                        觀眾檢視端 (Live Viewer)
+                    </span>
+                </template>
+
+                <button @click="copyShareUrl(!isHost)" 
+                        class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition flex items-center gap-1.5 text-xs font-medium"
+                        title="複製觀看連結">
+                    <i data-lucide="share-2" class="w-4 h-4 text-brand-400"></i>
+                    <span class="hidden sm:inline" x-text="isHost ? '分享觀眾連結' : '複製連結'"></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- System Overview Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 no-print">
+            <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+                <div class="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">目前賽制</div>
+                <div class="text-lg font-bold text-white flex items-center gap-2">
+                    <span x-text="tournamentMode === 'swiss' ? '瑞士制 (Swiss)' : '單淘汰 / 循環淘汰'"></span>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+                <div class="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">參賽選手人數</div>
+                <div class="text-lg font-bold text-white" x-text="players.length + ' 人'"></div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+                <div class="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">進行進度</div>
+                <div class="text-lg font-bold text-brand-400" x-text="statusText"></div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+                <div class="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">當前對戰完成率</div>
+                <div class="text-lg font-bold text-emerald-400" x-text="currentRoundProgress"></div>
+            </div>
+        </div>
+
+        <!-- Mode Switch / Control Bar -->
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4 no-print">
+            <div class="flex items-center gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
+                <button @click="activeTab = 'matches'" 
+                        :class="activeTab === 'matches' ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'"
+                        class="px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">
+                    <i data-lucide="swords" class="w-4 h-4"></i>
+                    對戰桌次 (Matches)
+                </button>
+                <button @click="activeTab = 'standings'" 
+                        :class="activeTab === 'standings' ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'"
+                        class="px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                    即時排行榜 (Standings)
+                </button>
+                <button x-show="isHost" @click="activeTab = 'settings'" 
+                        :class="activeTab === 'settings' ? 'bg-brand-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'"
+                        class="px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    賽事設定 (Settings)
+                </button>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button @click="window.print()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-sm font-semibold transition flex items-center gap-1.5">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    列印/匯出 PDF
+                </button>
+            </div>
+        </div>
+
+        <!-- TAB 1: MATCHES VIEW -->
+        <div x-show="activeTab === 'matches'" class="space-y-6">
+            <!-- Round Header & Actions -->
+            <div class="flex items-center justify-between bg-slate-900/60 p-4 rounded-2xl border border-slate-800 no-print">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <span x-text="currentStageType === 'round_robin' ? '循環決賽階段' : ('第 ' + currentRound + ' 輪對戰')"></span>
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5" x-text="tournamentMode === 'swiss' ? '依同分位對戰避開重複對手' : '單淘汰/循環晉級模式'"></p>
+                </div>
+
+                <div x-show="isHost" class="flex items-center gap-3">
+                    <button @click="nextRound()" 
+                            :disabled="!isCurrentRoundComplete"
+                            :class="isCurrentRoundComplete ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20' : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'"
+                            class="px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center gap-2">
+                        <span x-text="isLastRound ? '完成賽事並結算' : '生成下一輪對戰'"></span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Matches Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <template x-for="(match, index) in currentRoundMatches" :key="match.id">
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl transition hover:border-slate-700 relative overflow-hidden flex flex-col justify-between">
+                        
+                        <!-- Board Number Tag & Title -->
+                        <div class="flex items-center justify-between pb-3 border-b border-slate-700/60 mb-3">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-brand-400"></i>
+                                <span x-text="match.matchTitle ? match.matchTitle : ('桌次 Board ' + match.board)"></span>
+                            </span>
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full"
+                                  :class="match.winner !== null ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'">
+                                <span x-text="match.winner !== null ? '比分已確認' : '請輸入比分'"></span>
+                            </span>
+                        </div>
+
+                        <!-- BYE Match Handling -->
+                        <template x-if="match.isBye">
+                            <div class="py-6 text-center space-y-2">
+                                <div class="text-lg font-bold text-emerald-400" x-text="match.player1.name"></div>
+                                <div class="text-xs text-slate-400 bg-slate-800/80 py-1.5 px-3 rounded-full inline-block">本輪輪空 (BYE) +1 勝</div>
+                            </div>
+                        </template>
+
+                        <!-- Standard Match Handling -->
+                        <template x-if="!match.isBye">
+                            <div class="space-y-4 my-2">
+                                <!-- Player 1 Card -->
+                                <div class="p-3 rounded-xl border transition"
+                                     :class="match.winner === match.player1.id ? 'bg-emerald-950/40 border-emerald-500/50' : 'bg-slate-800/40 border-slate-800'">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <div class="font-bold text-white text-base flex items-center gap-2">
+                                            <span x-text="match.player1.name"></span>
+                                            <span class="text-xs font-normal text-slate-400" x-text="getPlayerStatsText(match.player1.id)"></span>
+                                        </div>
+                                        <template x-if="match.winner === match.player1.id">
+                                            <span class="text-xs bg-emerald-500 text-slate-950 font-black px-2 py-0.5 rounded">WINNER</span>
+                                        </template>
+                                    </div>
+
+                                    <!-- Mode Specific Player 1 Selection -->
+                                    <!-- A. Single Elimination Mode Winner Selector -->
+                                    <template x-if="tournamentMode === 'knockout' && currentStageType !== 'round_robin'">
+                                        <button x-show="isHost" @click="setKnockoutWinner(match, match.player1.id)"
+                                                :class="match.winner === match.player1.id ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'"
+                                                class="w-full py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 mt-2">
+                                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                                            <span x-text="match.winner === match.player1.id ? '獲勝選手' : '標示此選手勝出'"></span>
+                                        </button>
+                                    </template>
+
+                                    <!-- B. Swiss / Round-Robin Score Buttons (0-6) -->
+                                    <template x-if="tournamentMode === 'swiss' || currentStageType === 'round_robin'">
+                                        <div class="flex items-center gap-1 mt-2">
+                                            <span class="text-xs text-slate-400 mr-1 font-medium">得分:</span>
+                                            <template x-for="s in [0,1,2,3,4,5,6]" :key="s">
+                                                <button @click="setScore(match, 1, s)"
+                                                        :disabled="!isHost"
+                                                        :class="match.score1 === s ? 'bg-brand-500 text-white font-black scale-105 shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
+                                                        class="flex-1 py-1 text-xs font-bold rounded transition border border-slate-700/60"
+                                                        x-text="s">
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <div class="text-center text-xs font-black text-slate-600 uppercase tracking-widest my-1">VS</div>
+
+                                <!-- Player 2 Card -->
+                                <div class="p-3 rounded-xl border transition"
+                                     :class="match.winner === match.player2.id ? 'bg-emerald-950/40 border-emerald-500/50' : 'bg-slate-800/40 border-slate-800'">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <div class="font-bold text-white text-base flex items-center gap-2">
+                                            <span x-text="match.player2.name"></span>
+                                            <span class="text-xs font-normal text-slate-400" x-text="getPlayerStatsText(match.player2.id)"></span>
+                                        </div>
+                                        <template x-if="match.winner === match.player2.id">
+                                            <span class="text-xs bg-emerald-500 text-slate-950 font-black px-2 py-0.5 rounded">WINNER</span>
+                                        </template>
+                                    </div>
+
+                                    <!-- Mode Specific Player 2 Selection -->
+                                    <!-- A. Single Elimination Mode Winner Selector -->
+                                    <template x-if="tournamentMode === 'knockout' && currentStageType !== 'round_robin'">
+                                        <button x-show="isHost" @click="setKnockoutWinner(match, match.player2.id)"
+                                                :class="match.winner === match.player2.id ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'"
+                                                class="w-full py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 mt-2">
+                                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                                            <span x-text="match.winner === match.player2.id ? '獲勝選手' : '標示此選手勝出'"></span>
+                                        </button>
+                                    </template>
+
+                                    <!-- B. Swiss / Round-Robin Score Buttons (0-6) -->
+                                    <template x-if="tournamentMode === 'swiss' || currentStageType === 'round_robin'">
+                                        <div class="flex items-center gap-1 mt-2">
+                                            <span class="text-xs text-slate-400 mr-1 font-medium">得分:</span>
+                                            <template x-for="s in [0,1,2,3,4,5,6]" :key="s">
+                                                <button @click="setScore(match, 2, s)"
+                                                        :disabled="!isHost"
+                                                        :class="match.score2 === s ? 'bg-brand-500 text-white font-black scale-105 shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
+                                                        class="flex-1 py-1 text-xs font-bold rounded transition border border-slate-700/60"
+                                                        x-text="s">
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- TAB 2: STANDINGS VIEW -->
+        <div x-show="activeTab === 'standings'" class="space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+                <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i data-lucide="trophy" class="w-5 h-5 text-amber-400"></i>
+                            即時戰績排行榜 (Live Standings)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1">同分排序標準：1.總勝場(積分) ➔ 2.Buchholz小分(對手總勝場) ➔ 3.淨勝分差(Diff) ➔ 4.總得分</p>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950/60 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                                <th class="py-3.5 px-4 font-semibold text-center w-16">排名</th>
+                                <th class="py-3.5 px-4 font-semibold">選手名稱</th>
+                                <th class="py-3.5 px-4 font-semibold text-center">戰績 (勝 - 敗)</th>
+                                <th class="py-3.5 px-4 font-semibold text-center">總積分</th>
+                                <th class="py-3.5 px-4 font-semibold text-center">Buchholz (小分)</th>
+                                <th class="py-3.5 px-4 font-semibold text-center">淨勝分 (Diff)</th>
+                                <th class="py-3.5 px-4 font-semibold text-center">總得分 / 總失分</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/60 text-sm">
+                            <template x-for="(player, idx) in sortedStandings" :key="player.id">
+                                <tr class="hover:bg-slate-800/40 transition"
+                                    :class="idx < 4 ? 'bg-amber-500/5' : ''">
+                                    <td class="py-3.5 px-4 text-center font-bold">
+                                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs"
+                                              :class="{
+                                                  'bg-amber-400 text-slate-950 font-black': idx === 0,
+                                                  'bg-slate-300 text-slate-950 font-bold': idx === 1,
+                                                  'bg-amber-700 text-white font-bold': idx === 2,
+                                                  'bg-slate-800 text-slate-400': idx > 2
+                                              }" x-text="idx + 1"></span>
+                                    </td>
+                                    <td class="py-3.5 px-4 font-bold text-white">
+                                        <span x-text="player.name"></span>
+                                        <template x-if="player.isEliminated">
+                                            <span class="ml-2 text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">已淘汰</span>
+                                        </template>
+                                    </td>
+                                    <td class="py-3.5 px-4 text-center font-medium text-slate-300" x-text="player.wins + ' 勝 - ' + player.losses + ' 敗'"></td>
+                                    <td class="py-3.5 px-4 text-center font-black text-brand-400 text-base" x-text="player.points"></td>
+                                    <td class="py-3.5 px-4 text-center font-semibold text-amber-300" x-text="player.buchholz"></td>
+                                    <td class="py-3.5 px-4 text-center font-semibold" 
+                                        :class="player.pointDiff > 0 ? 'text-emerald-400' : (player.pointDiff < 0 ? 'text-rose-400' : 'text-slate-400')"
+                                        x-text="(player.pointDiff > 0 ? '+' : '') + player.pointDiff"></td>
+                                    <td class="py-3.5 px-4 text-center text-xs text-slate-400" x-text="player.scoresFor + ' / ' + player.scoresAgainst"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: SETTINGS VIEW (HOST ONLY) -->
+        <div x-show="activeTab === 'settings' && isHost" class="space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
+                <div>
+                    <h3 class="text-lg font-bold text-white mb-1">賽事參數設定</h3>
+                    <p class="text-xs text-slate-400">重置或設定比賽人數與賽制模式</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Tournament Mode Selection -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">選擇比賽賽制</label>
+                        <select x-model="tournamentMode" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+                            <option value="swiss">瑞士制 (Swiss System)</option>
+                            <option value="knockout">單淘汰賽 + 奇數循環賽 (Single Elimination)</option>
+                        </select>
+                    </div>
+
+                    <!-- Tournament Name -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">賽事名稱</label>
+                        <input type="text" x-model="tournamentName" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                </div>
+
+                <!-- Player Count Presets -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">快速選擇參賽人數預設值</label>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="count in [6, 8, 12, 16, 24, 32, 48]" :key="count">
+                            <button @click="setPresetPlayers(count)" 
+                                    class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-bold text-white transition flex items-center gap-1.5">
+                                <i data-lucide="users" class="w-4 h-4 text-brand-400"></i>
+                                <span x-text="count + ' 人'"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Action Controls -->
+                <div class="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                    <button @click="resetTournament()" class="px-5 py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-sm font-bold transition flex items-center gap-2">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        重新開始賽事 (Reset)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        function tournamentApp() {
+            return {
+                activeTab: 'matches',
+                isHost: true,
+                tournamentName: '2026 競賽賽事',
+                tournamentMode: 'swiss', // 'swiss' or 'knockout'
+                currentRound: 1,
+                maxRounds: 4,
+                currentStageType: 'standard',
+                
+                players: [],
+                currentRoundMatches: [],
+                roundsHistory: [],
+                roundRobinPool: [],
+
+                toast: {
+                    show: false,
+                    message: ''
+                },
+
+                showNotification(msg) {
+                    this.toast.message = msg;
+                    this.toast.show = true;
+                    setTimeout(() => { this.toast.show = false; }, 3500);
+                },
+
+                init() {
+                    // Check URL params for mode and room accurately
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const mode = urlParams.get('mode');
+                    
+                    if (mode === 'viewer') {
+                        this.isHost = false;
+                    } else {
+                        this.isHost = true;
+                    }
+
+                    // Default initialization with 16 players
+                    this.setPresetPlayers(16);
+                    
+                    // Re-render Lucide icons
+                    this.$nextTick(() => { lucide.createIcons(); });
+                },
+
+                get isLastRound() {
+                    return this.currentRound >= this.maxRounds;
+                },
+
+                get isCurrentRoundComplete() {
+                    if (!this.currentRoundMatches || this.currentRoundMatches.length === 0) return false;
+                    return this.currentRoundMatches.every(m => {
+                        if (m.isBye) return true;
+                        if (this.tournamentMode === 'knockout' && this.currentStageType !== 'round_robin') {
+                            return m.winner !== null && m.winner !== undefined;
+                        } else {
+                            return m.score1 !== null && m.score2 !== null && m.winner !== null;
+                        }
+                    });
+                },
+
+                get statusText() {
+                    if (this.currentStageType === 'round_robin') return '奇數循環決賽中';
+                    return `第 ${this.currentRound} / ${this.maxRounds} 輪`;
+                },
+
+                get currentRoundProgress() {
+                    if (!this.currentRoundMatches.length) return '0%';
+                    const done = this.currentRoundMatches.filter(m => m.winner !== null || m.isBye).length;
+                    return `${done} / ${this.currentRoundMatches.length} 桌`;
+                },
+
+                getPlayerStatsText(playerId) {
+                    const p = this.players.find(x => x.id === playerId);
+                    if (!p) return '';
+                    return `(${p.wins}勝 ${p.losses}敗 / ${p.points}分)`;
+                },
+
+                get sortedStandings() {
+                    return [...this.players].sort((a, b) => {
+                        if (b.points !== a.points) return b.points - a.points;
+                        if (b.buchholz !== a.buchholz) return b.buchholz - a.buchholz;
+                        if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
+                        return b.scoresFor - a.scoresFor;
+                    });
+                },
+
+                setPresetPlayers(count) {
+                    const names = Array.from({ length: count }, (_, i) => `選手 ${i + 1}`);
+                    
+                    // Auto set recommended rounds
+                    if (count <= 8) this.maxRounds = 3;
+                    else if (count <= 16) this.maxRounds = 4;
+                    else if (count <= 32) this.maxRounds = 5;
+                    else this.maxRounds = 6;
+
+                    this.players = names.map((name, index) => ({
+                        id: `p_${index + 1}`,
+                        name: name,
+                        wins: 0,
+                        losses: 0,
+                        points: 0,
+                        buchholz: 0,
+                        scoresFor: 0,
+                        scoresAgainst: 0,
+                        pointDiff: 0,
+                        opponents: [],
+                        isEliminated: false
+                    }));
+
+                    this.currentRound = 1;
+                    this.roundsHistory = [];
+                    this.generateRound1();
+                },
+
+                generateRound1() {
+                    let shuffled = [...this.players].sort(() => Math.random() - 0.5);
+                    let matches = [];
+                    let board = 1;
+
+                    for (let i = 0; i < shuffled.length; i += 2) {
+                        if (i + 1 < shuffled.length) {
+                            matches.push({
+                                id: `r1_m${board}`,
+                                board: board,
+                                player1: shuffled[i],
+                                player2: shuffled[i + 1],
+                                score1: null, score2: null,
+                                winner: null, isBye: false
+                            });
+                            board++;
+                        } else {
+                            matches.push({
+                                id: `r1_bye`,
+                                board: board,
+                                player1: shuffled[i],
+                                player2: null,
+                                score1: 0, score2: 0,
+                                winner: shuffled[i].id, isBye: true
+                            });
+                        }
+                    }
+                    this.currentRoundMatches = matches;
+                },
+
+                setKnockoutWinner(match, winnerId) {
+                    if (!this.isHost) return;
+                    match.winner = winnerId;
+                    this.recalculateStandings();
+                },
+
+                setScore(match, playerNumber, score) {
+                    if (!this.isHost) return;
+
+                    if (playerNumber === 1) match.score1 = score;
+                    if (playerNumber === 2) match.score2 = score;
+
+                    if (match.score1 !== null && match.score2 !== null) {
+                        if (match.score1 > match.score2) match.winner = match.player1.id;
+                        else if (match.score2 > match.score1) match.winner = match.player2.id;
+                        else match.winner = null;
+                    }
+                    this.recalculateStandings();
+                },
+
+                recalculateStandings() {
+                    // Reset stats
+                    this.players.forEach(p => {
+                        p.wins = 0; p.losses = 0; p.points = 0;
+                        p.buchholz = 0; p.scoresFor = 0; p.scoresAgainst = 0;
+                        p.pointDiff = 0; p.opponents = [];
+                    });
+
+                    const allRounds = [...this.roundsHistory, { matches: this.currentRoundMatches }];
+
+                    allRounds.forEach(round => {
+                        round.matches.forEach(m => {
+                            if (m.isBye && m.player1) {
+                                const p1 = this.players.find(x => x.id === m.player1.id);
+                                if (p1) { p1.wins += 1; p1.points += 1; }
+                            } else if (m.winner && m.player1 && m.player2) {
+                                const p1 = this.players.find(x => x.id === m.player1.id);
+                                const p2 = this.players.find(x => x.id === m.player2.id);
+
+                                if (p1 && p2) {
+                                    p1.opponents.push(p2.id);
+                                    p2.opponents.push(p1.id);
+
+                                    const s1 = m.score1 || 0;
+                                    const s2 = m.score2 || 0;
+
+                                    p1.scoresFor += s1; p1.scoresAgainst += s2;
+                                    p2.scoresFor += s2; p2.scoresAgainst += s1;
+
+                                    if (m.winner === p1.id) {
+                                        p1.wins += 1; p1.points += 1;
+                                        p2.losses += 1;
+                                    } else {
+                                        p2.wins += 1; p2.points += 1;
+                                        p1.losses += 1;
+                                    }
+                                }
+                            }
+                        });
+                    });
+
+                    // Calculate point differences
+                    this.players.forEach(p => { p.pointDiff = p.scoresFor - p.scoresAgainst; });
+
+                    // Calculate Buchholz
+                    this.players.forEach(p => {
+                        p.buchholz = p.opponents.reduce((acc, oppId) => {
+                            const opp = this.players.find(x => x.id === oppId);
+                            return acc + (opp ? opp.points : 0);
+                        }, 0);
+                    });
+                },
+
+                nextRound() {
+                    if (!this.isCurrentRoundComplete) return;
+
+                    this.roundsHistory.push({
+                        round: this.currentRound,
+                        matches: JSON.parse(JSON.stringify(this.currentRoundMatches))
+                    });
+
+                    if (this.currentRound >= this.maxRounds) {
+                        alert('賽事已全部進行完畢！請查看即時排行榜。');
+                        this.activeTab = 'standings';
+                        return;
+                    }
+
+                    this.currentRound++;
+
+                    if (this.tournamentMode === 'swiss') {
+                        this.generateSwissNextRound();
+                    } else {
+                        this.generateKnockoutOrRoundRobin();
+                    }
+                },
+
+                generateSwissNextRound() {
+                    let sorted = [...this.players].sort((a, b) => b.points - a.points || b.buchholz - a.buchholz);
+                    let paired = new Set();
+                    let matches = [];
+                    let board = 1;
+
+                    for (let i = 0; i < sorted.length; i++) {
+                        let p1 = sorted[i];
+                        if (paired.has(p1.id)) continue;
+
+                        let foundOpponent = false;
+                        for (let j = i + 1; j < sorted.length; j++) {
+                            let p2 = sorted[j];
+                            if (!paired.has(p2.id) && !p1.opponents.includes(p2.id)) {
+                                matches.push({
+                                    id: `r${this.currentRound}_m${board}`,
+                                    board: board++,
+                                    player1: p1, player2: p2,
+                                    score1: null, score2: null,
+                                    winner: null, isBye: false
+                                });
+                                paired.add(p1.id); paired.add(p2.id);
+                                foundOpponent = true;
+                                break;
+                            }
+                        }
+
+                        if (!foundOpponent && !paired.has(p1.id)) {
+                            matches.push({
+                                id: `r${this.currentRound}_bye`,
+                                board: board++,
+                                player1: p1, player2: null,
+                                score1: 0, score2: 0,
+                                winner: p1.id, isBye: true
+                            });
+                            paired.add(p1.id);
+                        }
+                    }
+                    this.currentRoundMatches = matches;
+                },
+
+                generateKnockoutOrRoundRobin() {
+                    const activePlayers = this.players.filter(p => !p.isEliminated);
+
+                    if (activePlayers.length % 2 !== 0 && activePlayers.length >= 3) {
+                        this.currentStageType = 'round_robin';
+                        this.roundRobinPool = activePlayers;
+                        this.generateRoundRobinMatches();
+                    } else if (activePlayers.length === 2) {
+                        this.currentStageType = 'single_elimination';
+                        const matches = [
+                            {
+                                id: `r${this.currentRound}_final`,
+                                board: 1,
+                                player1: activePlayers[0],
+                                player2: activePlayers[1],
+                                score1: null, score2: null,
+                                winner: null, isBye: false,
+                                matchTitle: '冠軍爭奪戰 (1st & 2nd Place)'
+                            }
+                        ];
+
+                        // Add 3rd/4th place match from semi-final losers
+                        if (this.roundsHistory.length > 0) {
+                            const lastRoundMatches = this.roundsHistory[this.roundsHistory.length - 1].matches;
+                            if (lastRoundMatches && lastRoundMatches.length === 2) {
+                                const thirdPlacePlayers = [];
+                                lastRoundMatches.forEach(m => {
+                                    if (m.winner) {
+                                        const loserId = m.winner === m.player1?.id ? m.player2?.id : m.player1?.id;
+                                        const loser = this.players.find(p => p.id === loserId);
+                                        if (loser) thirdPlacePlayers.push(loser);
+                                    }
+                                });
+
+                                if (thirdPlacePlayers.length === 2) {
+                                    matches.push({
+                                        id: `r${this.currentRound}_3rd_place`,
+                                        board: 2,
+                                        player1: thirdPlacePlayers[0],
+                                        player2: thirdPlacePlayers[1],
+                                        score1: null, score2: null,
+                                        winner: null, isBye: false,
+                                        matchTitle: '季殿軍爭奪戰 (3rd & 4th Place)'
+                                    });
+                                }
+                            }
+                        }
+
+                        this.currentRoundMatches = matches;
+                    } else {
+                        let matches = [];
+                        let board = 1;
+                        for (let i = 0; i < activePlayers.length; i += 2) {
+                            matches.push({
+                                id: `r${this.currentRound}_m${board}`,
+                                board: board++,
+                                player1: activePlayers[i],
+                                player2: activePlayers[i + 1],
+                                score1: null, score2: null,
+                                winner: null, isBye: false
+                            });
+                        }
+                        this.currentRoundMatches = matches;
+                    }
+                },
+
+                generateRoundRobinMatches() {
+                    let matches = [];
+                    let board = 1;
+                    const pool = this.roundRobinPool;
+                    for (let i = 0; i < pool.length; i++) {
+                        for (let j = i + 1; j < pool.length; j++) {
+                            matches.push({
+                                id: `rr_m${board}`,
+                                board: board++,
+                                player1: pool[i],
+                                player2: pool[j],
+                                score1: null, score2: null,
+                                winner: null, isBye: false
+                            });
+                        }
+                    }
+                    this.currentRoundMatches = matches;
+                },
+
+                resetTournament() {
+                    this.setPresetPlayers(this.players.length);
+                    this.activeTab = 'matches';
+                    this.showNotification('賽事已重新重置。');
+                },
+
+                copyShareUrl(toViewer) {
+                    const url = new URL(window.location.href);
+                    if (toViewer) {
+                        url.searchParams.set('mode', 'viewer');
+                    } else {
+                        url.searchParams.set('mode', 'host');
+                    }
+                    
+                    const urlString = url.toString();
+                    
+                    // Standard fallback copy method
+                    const textArea = document.createElement("textarea");
+                    textArea.value = urlString;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        this.showNotification(toViewer ? '已成功複製「觀眾檢視連結」！' : '已成功複製「主控端連結」！');
+                    } catch (err) {
+                        console.error('Copy failed', err);
+                    }
+                    document.body.removeChild(textArea);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
