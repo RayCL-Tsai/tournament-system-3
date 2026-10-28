@@ -33,13 +33,13 @@
           <h1 class="text-2xl font-bold tracking-wide bg-gradient-to-r from-indigo-400 to-pink-400 bg-clip-text text-transparent">
             Beyblade X 賽事管理系統
           </h1>
-          <p class="text-xs text-slate-400">當前模式：<span class="font-semibold text-indigo-300" x-text="systemModeText"></span></p>
+          <p class="text-xs text-slate-400">當前模式：<span class="font-semibold text-indigo-300" x-text="systemModeText"></span> | 雲端狀態：<span class="text-emerald-400" x-text="cloudStatus"></span></p>
         </div>
       </div>
 
       <div class="flex flex-wrap gap-2">
         <button @click="copyViewerLink()" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-share-nodes text-indigo-400"></i> 複製觀眾連結
+          <i class="fa-solid fa-share-nodes text-indigo-400"></i> 複製即時觀眾連結
         </button>
         <button @click="toggleMode()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition flex items-center gap-2 font-medium">
           <i class="fa-solid" :class="isHost ? 'fa-eye' : 'fa-user-gear'"></i>
@@ -101,13 +101,18 @@
             </div>
 
             <!-- Player 1 -->
-            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg bg-slate-900/50 gap-2">
-              <span class="font-medium text-lg" x-text="match.p1"></span>
+            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner === match.p1 ? 'bg-emerald-950/40 border-emerald-500/80' : 'bg-slate-900/50 border-transparent gap-2'">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-lg" x-text="match.p1"></span>
+                <template x-if="match.winner === match.p1">
+                  <span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded font-bold shadow"><i class="fa-solid fa-crown mr-1"></i>勝出</span>
+                </template>
+              </div>
               <div class="flex items-center gap-2">
                 <template x-if="tournamentType === 'swiss'">
                   <div class="flex flex-wrap gap-1 justify-end">
                     <template x-for="score in [0,1,2,3,4,5,6]">
-                      <button @click="isHost && setSwissScore(idx, 'p1', score)" :class="match.score1 === score ? 'bg-indigo-600 text-white shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
+                      <button @click="isHost && setSwissScore(idx, 'p1', score)" :class="match.score1 === score ? 'bg-indigo-600 text-white shadow ring-2 ring-indigo-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
                     </template>
                   </div>
                 </template>
@@ -122,13 +127,18 @@
             <div class="text-center text-xs text-slate-500 font-bold my-1">VS</div>
 
             <!-- Player 2 -->
-            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg bg-slate-900/50 gap-2">
-              <span class="font-medium text-lg" x-text="match.p2"></span>
+            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner === match.p2 ? 'bg-emerald-950/40 border-emerald-500/80' : 'bg-slate-900/50 border-transparent gap-2'">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-lg" x-text="match.p2"></span>
+                <template x-if="match.winner === match.p2">
+                  <span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded font-bold shadow"><i class="fa-solid fa-crown mr-1"></i>勝出</span>
+                </template>
+              </div>
               <div class="flex items-center gap-2">
                 <template x-if="tournamentType === 'swiss'">
                   <div class="flex flex-wrap gap-1 justify-end">
                     <template x-for="score in [0,1,2,3,4,5,6]">
-                      <button @click="isHost && setSwissScore(idx, 'p2', score)" :class="match.score2 === score ? 'bg-indigo-600 text-white shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
+                      <button @click="isHost && setSwissScore(idx, 'p2', score)" :class="match.score2 === score ? 'bg-indigo-600 text-white shadow ring-2 ring-indigo-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
                     </template>
                   </div>
                 </template>
@@ -179,7 +189,7 @@
         <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
           <div class="p-4 bg-slate-900/80 border-b border-slate-700 flex justify-between items-center">
             <h3 class="font-bold text-lg text-indigo-300"><i class="fa-solid fa-list-ol mr-2"></i>瑞士制即時積分排行榜</h3>
-            <span class="text-xs text-slate-400">依據勝場數、Buchholz 小分與淨勝分排序</span>
+            <span class="text-xs text-slate-400">依據勝場數、Buchholz 小分與總得分排序</span>
           </div>
           <table class="w-full text-left border-collapse">
             <thead>
@@ -276,12 +286,29 @@
 
   </div>
 
+  <!-- Firebase SDKs -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    window.firebaseModules = {
+      initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, doc, setDoc, onSnapshot
+    };
+  </script>
+
   <script>
+    let globalDb = null;
+    let globalAuth = null;
+    let appId = typeof __app_id !== 'undefined' ? __app_id : 'beyblade-x-default';
+    let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+    let initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
     function tournamentApp() {
       return {
         isHost: true,
         activeTab: 'matches',
-        tournamentType: 'swiss', // 'swiss' 或 'knockout'
+        tournamentType: 'swiss',
         currentRound: 1,
         totalRounds: 4,
         rawPlayerNames: '選手 01\n選手 02\n選手 03\n選手 04\n選手 05\n選手 06\n選手 07\n選手 08\n選手 09\n選手 10\n選手 11\n選手 12\n選手 13\n選手 14\n選手 15\n選手 16',
@@ -289,7 +316,9 @@
         currentMatches: [],
         bracketHistory: [],
         isTournamentFinished: false,
+        cloudStatus: '連線中...',
         toast: { show: false, message: '' },
+        _isSyncing: false,
 
         get systemModeText() {
           return this.isHost ? '主控端 (可編輯)' : '觀眾端 (僅供檢視)';
@@ -304,7 +333,6 @@
         },
 
         get sortedPlayers() {
-          // 計算 Buchholz 小分 (對手總積分)
           this.players.forEach(p => {
             p.buchholz = 0;
             p.opponents.forEach(oppName => {
@@ -320,12 +348,86 @@
           });
         },
 
-        init() {
+        async init() {
           const urlParams = new URLSearchParams(window.location.search);
           if (urlParams.get('mode') === 'viewer') {
             this.isHost = false;
           }
-          this.applySettingsAndReset();
+
+          // Initialize Firebase for real-time sync
+          await this.initFirebaseSync();
+
+          if (this.isHost) {
+            this.applySettingsAndReset();
+          }
+        },
+
+        async initFirebaseSync() {
+          try {
+            if (!window.firebaseModules || !firebaseConfig) {
+              this.cloudStatus = '離線模式';
+              return;
+            }
+            const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, doc, onSnapshot } = window.firebaseModules;
+            const app = initializeApp(firebaseConfig);
+            globalDb = getFirestore(app);
+            globalAuth = getAuth(app);
+
+            if (initialAuthToken) {
+              await signInWithCustomToken(globalAuth, initialAuthToken);
+            } else {
+              await signInAnonymously(globalAuth);
+            }
+            const user = globalAuth.currentUser;
+            if (!user) return;
+
+            this.cloudStatus = '雲端已連線';
+
+            // Listen to real-time doc updates
+            const stateRef = doc(globalDb, 'artifacts', appId, 'public', 'data', 'state', 'main');
+            onSnapshot(stateRef, (docSnap) => {
+              if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data && !this.isHost) {
+                  this._isSyncing = true;
+                  this.tournamentType = data.tournamentType || 'swiss';
+                  this.currentRound = data.currentRound || 1;
+                  this.totalRounds = data.totalRounds || 4;
+                  this.players = data.players || [];
+                  this.currentMatches = data.currentMatches || [];
+                  this.bracketHistory = data.bracketHistory || [];
+                  this.isTournamentFinished = data.isTournamentFinished || false;
+                  setTimeout(() => { this._isSyncing = false; }, 100);
+                }
+              }
+            }, (error) => {
+              console.error("Cloud sync snapshot error:", error);
+              this.cloudStatus = '同步異常';
+            });
+          } catch (e) {
+            console.error("Firebase init error:", e);
+            this.cloudStatus = '離線模式';
+          }
+        },
+
+        async saveToCloud() {
+          if (!this.isHost || this._isSyncing || !globalDb || !globalAuth?.currentUser) return;
+          try {
+            const { doc, setDoc } = window.firebaseModules;
+            const stateRef = doc(globalDb, 'artifacts', appId, 'public', 'data', 'state', 'main');
+            await setDoc(stateRef, {
+              tournamentType: this.tournamentType,
+              currentRound: this.currentRound,
+              totalRounds: this.totalRounds,
+              players: this.players,
+              currentMatches: this.currentMatches,
+              bracketHistory: this.bracketHistory,
+              isTournamentFinished: this.isTournamentFinished,
+              updatedAt: Date.now()
+            });
+          } catch (e) {
+            console.error("Error saving state to cloud:", e);
+          }
         },
 
         showNotification(msg) {
@@ -359,7 +461,7 @@
           try {
             const successful = document.execCommand('copy');
             if (successful) {
-              this.showNotification('觀眾端專用連結已複製到剪貼簿！');
+              this.showNotification('觀眾端即時同步連結已複製到剪貼簿！');
             } else {
               this.showNotification('無法自動複製，請手動複製網址。');
             }
@@ -389,7 +491,6 @@
             this.showNotification('選手人數不足，無法打亂！');
             return;
           }
-          // Fisher-Yates 隨機洗牌
           for (let i = names.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [names[i], names[j]] = [names[j], names[i]];
@@ -399,6 +500,7 @@
         },
 
         applySettingsAndReset() {
+          if (!this.isHost) return;
           const names = this.rawPlayerNames.split('\n').map(n => n.trim()).filter(n => n.length > 0);
           if (names.length < 2) {
             this.showNotification('請至少輸入 2 位選手名稱！');
@@ -420,6 +522,7 @@
           this.generateRoundMatches();
           this.activeTab = 'matches';
           this.showNotification('賽事已重新設定並生成第一輪賽程！');
+          this.saveToCloud();
         },
 
         generateRoundMatches() {
@@ -503,7 +606,6 @@
               }
             }
           } else {
-            // 瑞士制配對邏輯
             if (this.currentRound > this.totalRounds) {
               this.isTournamentFinished = true;
               return;
@@ -518,14 +620,12 @@
               paired.add(p1.name);
 
               let p2 = null;
-              // 找未配對且勝場接近的對手
               for (let j = i + 1; j < pool.length; j++) {
                 if (!paired.has(pool[j].name) && !p1.opponents.includes(pool[j].name)) {
                   p2 = pool[j];
                   break;
                 }
               }
-              // 若找不到未對戰過的，就找任意未配對的
               if (!p2) {
                 for (let j = i + 1; j < pool.length; j++) {
                   if (!paired.has(pool[j].name)) {
@@ -545,13 +645,12 @@
                   title: `第 ${this.currentRound} 輪 桌次 ${this.currentMatches.length + 1}`,
                   p1: p1.name,
                   p2: p2.name,
-                  score1: 0,
-                  score2: 0,
+                  score1: undefined,
+                  score2: undefined,
                   winner: null,
                   completed: false
                 });
               } else {
-                // 奇數輪空 (BYE)
                 this.currentMatches.push({
                   id: `swiss_r${this.currentRound}_bye`,
                   title: `第 ${this.currentRound} 輪 (輪空)`,
@@ -568,6 +667,7 @@
         },
 
         setSwissScore(matchIndex, playerKey, score) {
+          if (!this.isHost) return;
           const match = this.currentMatches[matchIndex];
           if (playerKey === 'p1') match.score1 = score;
           if (playerKey === 'p2') match.score2 = score;
@@ -578,15 +678,19 @@
             else if (match.score2 > match.score1) match.winner = match.p2;
             else match.winner = '平手';
           }
+          this.saveToCloud();
         },
 
         setWinner(matchIndex, winnerName) {
+          if (!this.isHost) return;
           const match = this.currentMatches[matchIndex];
           match.winner = winnerName;
           match.completed = true;
+          this.saveToCloud();
         },
 
         nextRound() {
+          if (!this.isHost) return;
           const uncompleted = this.currentMatches.some(m => !m.completed);
           if (uncompleted) {
             this.showNotification('還有桌次尚未完成登記，請先完成！');
@@ -611,11 +715,13 @@
           if (this.currentRound > this.totalRounds && this.tournamentType === 'swiss') {
             this.isTournamentFinished = true;
             this.showNotification('瑞士制所有輪次已全部打完！');
+            this.saveToCloud();
             return;
           }
 
           this.generateRoundMatches();
           this.showNotification(`已成功進入第 ${this.currentRound} 輪賽事！`);
+          this.saveToCloud();
         }
       }
     }
