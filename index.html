@@ -33,7 +33,7 @@
           <h1 class="text-2xl font-bold tracking-wide bg-gradient-to-r from-indigo-400 to-pink-400 bg-clip-text text-transparent">
             Beyblade X 賽事管理系統
           </h1>
-          <p class="text-xs text-slate-400">當前模式：<span class="font-semibold text-indigo-300" x-text="systemModeText"></span> | 雲端狀態：<span class="text-emerald-400" x-text="cloudStatus"></span></p>
+          <p class="text-xs text-slate-400">當前模式：<span class="font-semibold text-indigo-300" x-text="systemModeText"></span> | 狀態：<span class="text-emerald-400" x-text="cloudStatus"></span></p>
         </div>
       </div>
 
@@ -57,7 +57,7 @@
         <i class="fa-solid" :class="tournamentType === 'knockout' ? 'fa-sitemap' : 'fa-list-ol'"></i>
         <span x-text="tournamentType === 'knockout' ? '樹狀賽程圖' : '即時排行榜'"></span>
       </button>
-      <!-- Strict Tab Isolation: Settings tab is hidden in viewer mode -->
+      <!-- 嚴格限制：僅主控端可見賽事設定分頁 -->
       <button x-show="isHost" @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'border-indigo-500 text-indigo-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'" class="py-3 px-5 border-b-2 transition flex items-center gap-2">
         <i class="fa-solid fa-sliders"></i> 賽事設定
       </button>
@@ -101,7 +101,7 @@
             </div>
 
             <!-- Player 1 -->
-            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner === match.p1 ? 'bg-emerald-950/40 border-emerald-500/80' : 'bg-slate-900/50 border-transparent gap-2'">
+            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner === match.p1 ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500' : 'bg-slate-900/50 border-transparent gap-2'">
               <div class="flex items-center gap-2">
                 <span class="font-medium text-lg" x-text="match.p1"></span>
                 <template x-if="match.winner === match.p1">
@@ -127,7 +127,7 @@
             <div class="text-center text-xs text-slate-500 font-bold my-1">VS</div>
 
             <!-- Player 2 -->
-            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner === match.p2 ? 'bg-emerald-950/40 border-emerald-500/80' : 'bg-slate-900/50 border-transparent gap-2'">
+            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner === match.p2 ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500' : 'bg-slate-900/50 border-transparent gap-2'">
               <div class="flex items-center gap-2">
                 <span class="font-medium text-lg" x-text="match.p2"></span>
                 <template x-if="match.winner === match.p2">
@@ -286,24 +286,7 @@
 
   </div>
 
-  <!-- Firebase SDKs -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    window.firebaseModules = {
-      initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, doc, setDoc, onSnapshot
-    };
-  </script>
-
   <script>
-    let globalDb = null;
-    let globalAuth = null;
-    let appId = typeof __app_id !== 'undefined' ? __app_id : 'beyblade-x-default';
-    let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-    let initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
     function tournamentApp() {
       return {
         isHost: true,
@@ -319,6 +302,7 @@
         cloudStatus: '連線中...',
         toast: { show: false, message: '' },
         _isSyncing: false,
+        lastRemoteUpdate: 0,
 
         get systemModeText() {
           return this.isHost ? '主控端 (可編輯)' : '觀眾端 (僅供檢視)';
@@ -354,79 +338,102 @@
             this.isHost = false;
           }
 
-          // Initialize Firebase for real-time sync
-          await this.initFirebaseSync();
+          // Zero-config Cloud Sync init with robust try/catch fallback for offline/sandboxes
+          await this.initZeroConfigCloud();
 
           if (this.isHost) {
             this.applySettingsAndReset();
           }
         },
 
-        async initFirebaseSync() {
+        async initZeroConfigCloud() {
           try {
-            if (!window.firebaseModules || !firebaseConfig) {
-              this.cloudStatus = '離線模式';
-              return;
-            }
-            const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, doc, onSnapshot } = window.firebaseModules;
-            const app = initializeApp(firebaseConfig);
-            globalDb = getFirestore(app);
-            globalAuth = getAuth(app);
+            const urlParams = new URLSearchParams(window.location.search);
+            let roomId = urlParams.get('room');
 
-            if (initialAuthToken) {
-              await signInWithCustomToken(globalAuth, initialAuthToken);
-            } else {
-              await signInAnonymously(globalAuth);
-            }
-            const user = globalAuth.currentUser;
-            if (!user) return;
-
-            this.cloudStatus = '雲端已連線';
-
-            // Listen to real-time doc updates
-            const stateRef = doc(globalDb, 'artifacts', appId, 'public', 'data', 'state', 'main');
-            onSnapshot(stateRef, (docSnap) => {
-              if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data && !this.isHost) {
-                  this._isSyncing = true;
-                  this.tournamentType = data.tournamentType || 'swiss';
-                  this.currentRound = data.currentRound || 1;
-                  this.totalRounds = data.totalRounds || 4;
-                  this.players = data.players || [];
-                  this.currentMatches = data.currentMatches || [];
-                  this.bracketHistory = data.bracketHistory || [];
-                  this.isTournamentFinished = data.isTournamentFinished || false;
-                  setTimeout(() => { this._isSyncing = false; }, 100);
+            if (!roomId && this.isHost) {
+              try {
+                const res = await fetch('https://jsonblob.com/api/jsonBlob', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                  body: JSON.stringify({ initialized: true, updatedAt: Date.now() })
+                });
+                if (res.ok) {
+                  const location = res.headers.get('Location');
+                  if (location) {
+                    roomId = location.split('/').pop();
+                    const newUrl = new URL(window.location.href);
+                    newUrl.searchParams.set('room', roomId);
+                    window.history.replaceState({}, '', newUrl);
+                  }
                 }
+              } catch (fetchErr) {
+                console.warn("Cloud sync unavailable (Network/CORS restriction), falling back to Local Mode.");
               }
-            }, (error) => {
-              console.error("Cloud sync snapshot error:", error);
-              this.cloudStatus = '同步異常';
-            });
+            }
+
+            if (roomId) {
+              this.cloudStatus = '雲端即時同步已連線';
+
+              if (!this.isHost) {
+                setInterval(async () => {
+                  try {
+                    const res = await fetch(`https://jsonblob.com/api/jsonBlob/${roomId}`, {
+                      headers: { 'Accept': 'application/json' }
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      if (data && data.updatedAt && data.updatedAt > this.lastRemoteUpdate) {
+                        this._isSyncing = true;
+                        this.tournamentType = data.tournamentType || 'swiss';
+                        this.currentRound = data.currentRound || 1;
+                        this.totalRounds = data.totalRounds || 4;
+                        this.players = data.players || [];
+                        this.currentMatches = data.currentMatches || [];
+                        this.bracketHistory = data.bracketHistory || [];
+                        this.isTournamentFinished = data.isTournamentFinished || false;
+                        this.lastRemoteUpdate = data.updatedAt;
+                        setTimeout(() => { this._isSyncing = false; }, 100);
+                        this.cloudStatus = '即時同步中 (Live)';
+                      }
+                    }
+                  } catch (err) {
+                    this.cloudStatus = '本機離線模式';
+                  }
+                }, 3000);
+              }
+            } else {
+              this.cloudStatus = '本機離線模式 (Local Mode)';
+            }
           } catch (e) {
-            console.error("Firebase init error:", e);
-            this.cloudStatus = '離線模式';
+            this.cloudStatus = '本機離線模式 (Local Mode)';
           }
         },
 
         async saveToCloud() {
-          if (!this.isHost || this._isSyncing || !globalDb || !globalAuth?.currentUser) return;
+          if (!this.isHost || this._isSyncing) return;
           try {
-            const { doc, setDoc } = window.firebaseModules;
-            const stateRef = doc(globalDb, 'artifacts', appId, 'public', 'data', 'state', 'main');
-            await setDoc(stateRef, {
-              tournamentType: this.tournamentType,
-              currentRound: this.currentRound,
-              totalRounds: this.totalRounds,
-              players: this.players,
-              currentMatches: this.currentMatches,
-              bracketHistory: this.bracketHistory,
-              isTournamentFinished: this.isTournamentFinished,
-              updatedAt: Date.now()
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomId = urlParams.get('room');
+            if (!roomId) return;
+
+            await fetch(`https://jsonblob.com/api/jsonBlob/${roomId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify({
+                tournamentType: this.tournamentType,
+                currentRound: this.currentRound,
+                totalRounds: this.totalRounds,
+                players: this.players,
+                currentMatches: this.currentMatches,
+                bracketHistory: this.bracketHistory,
+                isTournamentFinished: this.isTournamentFinished,
+                updatedAt: Date.now()
+              })
             });
+            this.cloudStatus = '雲端已同步';
           } catch (e) {
-            console.error("Error saving state to cloud:", e);
+            this.cloudStatus = '本機離線模式';
           }
         },
 
