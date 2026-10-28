@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title> Beyblade X 賽事管理系統</title>
+  <title>Beyblade X 賽事管理系統</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Alpine.js -->
@@ -57,23 +57,38 @@
         <i class="fa-solid" :class="tournamentType === 'knockout' ? 'fa-sitemap' : 'fa-list-ol'"></i>
         <span x-text="tournamentType === 'knockout' ? '樹狀賽程圖' : '即時排行榜'"></span>
       </button>
+      <!-- Strict Tab Isolation: Settings tab is hidden in viewer mode -->
       <button x-show="isHost" @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'border-indigo-500 text-indigo-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'" class="py-3 px-5 border-b-2 transition flex items-center gap-2">
         <i class="fa-solid fa-sliders"></i> 賽事設定
       </button>
     </nav>
 
     <!-- Tab 1: 對戰桌次 (Matches) -->
-    <main x-show="activeTab === 'matches'">
-      <div class="flex justify-between items-center mb-6 bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
+    <main x-show="activeTab === 'matches'" class="space-y-6">
+      <div class="flex justify-between items-center bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
         <div>
           <h2 class="text-xl font-bold flex items-center gap-2">
-            <span>第 <span class="text-indigo-400" x-text="currentRound"></span> 輪賽事</span>
-            <span class="text-xs bg-indigo-900/80 text-indigo-300 px-2 py-0.5 rounded border border-indigo-700" x-text="tournamentType === 'knockout' ? '單淘汰賽' : '瑞士制'"></span>
+            <span>
+              <template x-if="tournamentType === 'swiss'">
+                <span>第 <span class="text-indigo-400" x-text="currentRound"></span> 輪 / 共 <span x-text="totalRounds"></span> 輪</span>
+              </template>
+              <template x-if="tournamentType === 'knockout'">
+                <span>單淘汰賽階段</span>
+              </template>
+            </span>
+            <span class="text-xs bg-indigo-900/80 text-indigo-300 px-2 py-0.5 rounded border border-indigo-700" x-text="tournamentType === 'knockout' ? '單淘汰賽 (含季殿軍)' : '瑞士制'"></span>
           </h2>
         </div>
-        <button x-show="isHost" @click="nextRound()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold shadow-lg transition flex items-center gap-2">
-          <span>下一輪賽事</span> <i class="fa-solid fa-arrow-right"></i>
+        <button x-show="isHost && !isTournamentFinished" @click="nextRound()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold shadow-lg transition flex items-center gap-2">
+          <span>進入下一輪</span> <i class="fa-solid fa-arrow-right"></i>
         </button>
+      </div>
+
+      <!-- Tournament Finished Banner -->
+      <div x-show="isTournamentFinished" class="bg-gradient-to-r from-emerald-900/80 to-teal-900/80 p-6 rounded-2xl border border-emerald-500 text-center space-y-2">
+        <i class="fa-solid fa-crown text-4xl text-yellow-400 animate-bounce"></i>
+        <h3 class="text-2xl font-bold text-white">賽事已圓滿結束！</h3>
+        <p class="text-slate-300 text-sm">請前往「即時排行榜」或「樹狀賽程圖」查看最終名次與冠軍得主。</p>
       </div>
 
       <!-- Match Cards Grid -->
@@ -81,29 +96,47 @@
         <template x-for="(match, idx) in currentMatches" :key="idx">
           <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 relative shadow-md">
             <div class="flex justify-between items-center mb-3 text-xs text-slate-400 border-b border-slate-700/60 pb-2">
-              <span class="font-bold text-slate-300" x-text="'桌次 ' + (idx + 1)"></span>
+              <span class="font-bold text-slate-300" x-text="match.title || ('桌次 ' + (idx + 1))"></span>
               <span x-text="match.completed ? '已完成' : '進行中'" :class="match.completed ? 'text-emerald-400' : 'text-amber-400'"></span>
             </div>
 
             <!-- Player 1 -->
-            <div class="flex justify-between items-center my-2 p-2 rounded-lg bg-slate-900/50">
+            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg bg-slate-900/50 gap-2">
               <span class="font-medium text-lg" x-text="match.p1"></span>
-              <div class="flex items-center gap-2" x-show="tournamentType === 'knockout'">
-                <button x-show="isHost" @click="setWinner(idx, match.p1)" :class="match.winner === match.p1 ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'" class="px-3 py-1 rounded text-sm transition font-bold">
-                  <i class="fa-solid fa-trophy mr-1"></i> 勝出
-                </button>
+              <div class="flex items-center gap-2">
+                <template x-if="tournamentType === 'swiss'">
+                  <div class="flex flex-wrap gap-1 justify-end">
+                    <template x-for="score in [0,1,2,3,4,5,6]">
+                      <button @click="isHost && setSwissScore(idx, 'p1', score)" :class="match.score1 === score ? 'bg-indigo-600 text-white shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
+                    </template>
+                  </div>
+                </template>
+                <template x-if="tournamentType === 'knockout'">
+                  <button x-show="isHost" @click="setWinner(idx, match.p1)" :class="match.winner === match.p1 ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'" class="px-3 py-1.5 rounded text-sm transition font-bold">
+                    <i class="fa-solid fa-trophy mr-1"></i> 勝出
+                  </button>
+                </template>
               </div>
             </div>
 
             <div class="text-center text-xs text-slate-500 font-bold my-1">VS</div>
 
             <!-- Player 2 -->
-            <div class="flex justify-between items-center my-2 p-2 rounded-lg bg-slate-900/50">
+            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg bg-slate-900/50 gap-2">
               <span class="font-medium text-lg" x-text="match.p2"></span>
-              <div class="flex items-center gap-2" x-show="tournamentType === 'knockout'">
-                <button x-show="isHost" @click="setWinner(idx, match.p2)" :class="match.winner === match.p2 ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'" class="px-3 py-1 rounded text-sm transition font-bold">
-                  <i class="fa-solid fa-trophy mr-1"></i> 勝出
-                </button>
+              <div class="flex items-center gap-2">
+                <template x-if="tournamentType === 'swiss'">
+                  <div class="flex flex-wrap gap-1 justify-end">
+                    <template x-for="score in [0,1,2,3,4,5,6]">
+                      <button @click="isHost && setSwissScore(idx, 'p2', score)" :class="match.score2 === score ? 'bg-indigo-600 text-white shadow' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
+                    </template>
+                  </div>
+                </template>
+                <template x-if="tournamentType === 'knockout'">
+                  <button x-show="isHost" @click="setWinner(idx, match.p2)" :class="match.winner === match.p2 ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'" class="px-3 py-1.5 rounded text-sm transition font-bold">
+                    <i class="fa-solid fa-trophy mr-1"></i> 勝出
+                  </button>
+                </template>
               </div>
             </div>
           </div>
@@ -112,17 +145,18 @@
     </main>
 
     <!-- Tab 2: 即時排行榜 / 樹狀圖 (Rankings / Bracket) -->
-    <main x-show="activeTab === 'rankings'">
+    <main x-show="activeTab === 'rankings'" class="space-y-6">
       <!-- 單淘汰樹狀圖視角 -->
       <template x-if="tournamentType === 'knockout'">
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 overflow-x-auto">
-          <h3 class="text-lg font-bold mb-4 text-indigo-300"><i class="fa-solid fa-sitemap mr-2"></i>單淘汰對戰樹狀圖</h3>
-          <div class="flex gap-8 min-w-[600px]">
+          <h3 class="text-lg font-bold mb-4 text-indigo-300"><i class="fa-solid fa-sitemap mr-2"></i>單淘汰對戰樹狀圖 (含季殿軍)</h3>
+          <div class="flex gap-8 min-w-[700px]">
             <template x-for="(roundMatches, rIdx) in bracketHistory" :key="rIdx">
               <div class="flex flex-col justify-around flex-1 gap-4">
-                <div class="text-xs font-bold text-slate-400 text-center uppercase tracking-wider mb-2" x-text="'第 ' + (rIdx + 1) + ' 輪'"></div>
+                <div class="text-xs font-bold text-slate-400 text-center uppercase tracking-wider mb-2" x-text="'階段 ' + (rIdx + 1)"></div>
                 <template x-for="m in roundMatches" :key="m.id">
                   <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 space-y-2">
+                    <div class="text-xs text-indigo-400 font-semibold mb-1" x-text="m.title || '對戰組'"></div>
                     <div class="flex justify-between text-sm" :class="m.winner === m.p1 ? 'text-emerald-400 font-bold' : 'text-slate-300'">
                       <span x-text="m.p1 || 'TBD'"></span>
                       <i x-show="m.winner === m.p1" class="fa-solid fa-check text-xs"></i>
@@ -142,23 +176,29 @@
 
       <!-- 瑞士制排行榜視角 -->
       <template x-if="tournamentType === 'swiss'">
-        <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+          <div class="p-4 bg-slate-900/80 border-b border-slate-700 flex justify-between items-center">
+            <h3 class="font-bold text-lg text-indigo-300"><i class="fa-solid fa-list-ol mr-2"></i>瑞士制即時積分排行榜</h3>
+            <span class="text-xs text-slate-400">依據勝場數、Buchholz 小分與淨勝分排序</span>
+          </div>
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-slate-900/80 text-slate-400 text-sm border-b border-slate-700">
+              <tr class="bg-slate-900/50 text-slate-400 text-sm border-b border-slate-700">
                 <th class="p-4">排名</th>
                 <th class="p-4">選手名稱</th>
-                <th class="p-4">勝分 (Wins)</th>
-                <th class="p-4">敗分 (Losses)</th>
+                <th class="p-4">勝場</th>
+                <th class="p-4">總得分</th>
+                <th class="p-4">Buchholz 小分</th>
               </tr>
             </thead>
             <tbody>
               <template x-for="(p, rank) in sortedPlayers" :key="p.name">
                 <tr class="border-b border-slate-700/50 hover:bg-slate-700/30 transition">
                   <td class="p-4 font-bold text-indigo-400" x-text="rank + 1"></td>
-                  <td class="p-4 font-semibold" x-text="p.name"></td>
+                  <td class="p-4 font-semibold text-slate-100" x-text="p.name"></td>
                   <td class="p-4 text-emerald-400 font-bold" x-text="p.wins"></td>
-                  <td class="p-4 text-rose-400 font-bold" x-text="p.losses"></td>
+                  <td class="p-4 text-slate-300" x-text="p.points"></td>
+                  <td class="p-4 text-pink-400 font-semibold" x-text="p.buchholz.toFixed(1)"></td>
                 </tr>
               </template>
             </tbody>
@@ -167,8 +207,8 @@
       </template>
     </main>
 
-    <!-- Tab 3: 賽事設定 (Settings) -->
-    <main x-show="activeTab === 'settings' && isHost">
+    <!-- Tab 3: 賽事設定 (Settings) - 嚴格受 isHost 控制 -->
+    <main x-show="activeTab === 'settings' && isHost" class="space-y-6">
       <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-6">
         <h2 class="text-xl font-bold border-b border-slate-700 pb-3 flex items-center gap-2">
           <i class="fa-solid fa-gear text-indigo-400"></i> 賽事基本設定
@@ -178,21 +218,51 @@
         <div class="space-y-2">
           <label class="block font-medium text-slate-300">選擇賽制模式</label>
           <div class="grid grid-cols-2 gap-4">
-            <button @click="changeTournamentType('swiss')" :class="tournamentType === 'swiss' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'" class="p-4 rounded-xl border font-bold text-center transition flex flex-col items-center gap-2">
+            <button @click="tournamentType = 'swiss'" :class="tournamentType === 'swiss' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'" class="p-4 rounded-xl border font-bold text-center transition flex flex-col items-center gap-2">
               <i class="fa-solid fa-diagram-project text-2xl"></i>
               <span>瑞士制 (Swiss System)</span>
             </button>
-            <button @click="changeTournamentType('knockout')" :class="tournamentType === 'knockout' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'" class="p-4 rounded-xl border font-bold text-center transition flex flex-col items-center gap-2">
+            <button @click="tournamentType = 'knockout'" :class="tournamentType === 'knockout' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'" class="p-4 rounded-xl border font-bold text-center transition flex flex-col items-center gap-2">
               <i class="fa-solid fa-sitemap text-2xl"></i>
-              <span>單淘汰賽 (Single Elimination)</span>
+              <span>單淘汰賽 (含季殿軍)</span>
             </button>
           </div>
         </div>
 
+        <!-- 人數快速設定 (支援 4 / 6 / 8 / 12 / 16 / 20 / 24 / 28 / 32) -->
+        <div class="space-y-2">
+          <label class="block font-medium text-slate-300">快速設定選手人數</label>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="cnt in [4, 6, 8, 12, 16, 20, 24, 28, 32]">
+              <button @click="setPlayerCount(cnt)" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg text-sm font-bold transition" x-text="cnt + ' 人'"></button>
+            </template>
+          </div>
+        </div>
+
+        <!-- 輪次設定 (針對瑞士制) -->
+        <div class="space-y-2" x-show="tournamentType === 'swiss'">
+          <div class="flex justify-between items-center">
+            <label class="block font-medium text-slate-300">瑞士制預定輪次 (可自訂)</label>
+            <span class="text-xs text-indigo-300" x-text="'建議輪次：' + recommendedRounds + ' 輪'"></span>
+          </div>
+          <select x-model.number="totalRounds" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500">
+            <option value="2">2 輪 (適合 4 人)</option>
+            <option value="3">3 輪 (適合 6-8 人)</option>
+            <option value="4">4 輪 (適合 12-16 人)</option>
+            <option value="5">5 輪 (適合 20-32 人)</option>
+            <option value="6">6 輪 (深度積分賽)</option>
+          </select>
+        </div>
+
         <!-- 選手名單管理 -->
         <div class="space-y-2">
-          <label class="block font-medium text-slate-300">選手名單 (每行一名選手)</label>
-          <textarea x-model="rawPlayerNames" rows="8" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono" placeholder="請輸入選手姓名..."></textarea>
+          <div class="flex justify-between items-center">
+            <label class="block font-medium text-slate-300">選手名單 (編號 01 起，每行一位選手)</label>
+            <button @click="randomizePlayers()" class="px-3 py-1 bg-pink-600 hover:bg-pink-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow">
+              <i class="fa-solid fa-shuffle"></i> 隨機打亂名單
+            </button>
+          </div>
+          <textarea x-model="rawPlayerNames" rows="8" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono" placeholder="選手 01&#10;選手 02..."></textarea>
         </div>
 
         <!-- 重新重置按鈕 -->
@@ -213,18 +283,41 @@
         activeTab: 'matches',
         tournamentType: 'swiss', // 'swiss' 或 'knockout'
         currentRound: 1,
-        rawPlayerNames: '選手 A\n選手 B\n選手 C\n選手 D\n選手 E\n選手 F\n選手 G\n選手 H',
+        totalRounds: 4,
+        rawPlayerNames: '選手 01\n選手 02\n選手 03\n選手 04\n選手 05\n選手 06\n選手 07\n選手 08\n選手 09\n選手 10\n選手 11\n選手 12\n選手 13\n選手 14\n選手 15\n選手 16',
         players: [],
         currentMatches: [],
         bracketHistory: [],
+        isTournamentFinished: false,
         toast: { show: false, message: '' },
 
         get systemModeText() {
           return this.isHost ? '主控端 (可編輯)' : '觀眾端 (僅供檢視)';
         },
 
+        get recommendedRounds() {
+          const count = this.players.length || this.rawPlayerNames.split('\n').filter(n => n.trim()).length;
+          if (count <= 4) return 2;
+          if (count <= 8) return 3;
+          if (count <= 16) return 4;
+          return 5;
+        },
+
         get sortedPlayers() {
-          return [...this.players].sort((a, b) => b.wins - a.wins || a.losses - b.losses);
+          // 計算 Buchholz 小分 (對手總積分)
+          this.players.forEach(p => {
+            p.buchholz = 0;
+            p.opponents.forEach(oppName => {
+              const opp = this.players.find(x => x.name === oppName);
+              if (opp) p.buchholz += opp.points;
+            });
+          });
+
+          return [...this.players].sort((a, b) => {
+            if (b.wins !== a.wins) return b.wins - a.wins;
+            if (b.buchholz !== a.buchholz) return b.buchholz - a.buchholz;
+            return b.points - a.points;
+          });
         },
 
         init() {
@@ -252,13 +345,57 @@
         copyViewerLink() {
           const url = new URL(window.location.href);
           url.searchParams.set('mode', 'viewer');
-          navigator.clipboard.writeText(url.toString()).then(() => {
-            this.showNotification('觀眾端專用連結已複製到剪貼簿！');
-          });
+          
+          const textArea = document.createElement('textarea');
+          textArea.value = url.toString();
+          textArea.style.position = 'fixed';
+          textArea.style.top = '0';
+          textArea.style.left = '0';
+          textArea.style.opacity = '0';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          
+          try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+              this.showNotification('觀眾端專用連結已複製到剪貼簿！');
+            } else {
+              this.showNotification('無法自動複製，請手動複製網址。');
+            }
+          } catch (err) {
+            this.showNotification('無法自動複製，請手動複製網址。');
+          }
+          document.body.removeChild(textArea);
         },
 
-        changeTournamentType(type) {
-          this.tournamentType = type;
+        setPlayerCount(count) {
+          let names = [];
+          for (let i = 1; i <= count; i++) {
+            const numStr = String(i).padStart(2, '0');
+            names.push(`選手 ${numStr}`);
+          }
+          this.rawPlayerNames = names.join('\n');
+          if (count <= 4) this.totalRounds = 2;
+          else if (count <= 8) this.totalRounds = 3;
+          else if (count <= 16) this.totalRounds = 4;
+          else this.totalRounds = 5;
+          this.showNotification(`已載入 ${count} 人預設名單！`);
+        },
+
+        randomizePlayers() {
+          let names = this.rawPlayerNames.split('\n').map(n => n.trim()).filter(n => n.length > 0);
+          if (names.length < 2) {
+            this.showNotification('選手人數不足，無法打亂！');
+            return;
+          }
+          // Fisher-Yates 隨機洗牌
+          for (let i = names.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [names[i], names[j]] = [names[j], names[i]];
+          }
+          this.rawPlayerNames = names.join('\n');
+          this.showNotification('選手名單順序已隨機打亂！');
         },
 
         applySettingsAndReset() {
@@ -268,9 +405,17 @@
             return;
           }
 
-          this.players = names.map(name => ({ name, wins: 0, losses: 0 }));
+          this.players = names.map(name => ({
+            name,
+            wins: 0,
+            losses: 0,
+            points: 0,
+            buchholz: 0,
+            opponents: []
+          }));
           this.currentRound = 1;
           this.bracketHistory = [];
+          this.isTournamentFinished = false;
 
           this.generateRoundMatches();
           this.activeTab = 'matches';
@@ -281,40 +426,157 @@
           this.currentMatches = [];
 
           if (this.tournamentType === 'knockout') {
-            let activePool = [];
             if (this.currentRound === 1) {
-              activePool = [...this.players.map(p => p.name)];
-            } else {
-              const prevRoundMatches = this.bracketHistory[this.currentRound - 2];
-              activePool = prevRoundMatches.map(m => m.winner).filter(Boolean);
-            }
+              const pool = [...this.players.map(p => p.name)];
+              for (let i = 0; i < pool.length; i += 2) {
+                this.currentMatches.push({
+                  id: `r1_m${i/2}`,
+                  title: `淘汰賽 第 1 輪 (桌次 ${i/2 + 1})`,
+                  p1: pool[i],
+                  p2: pool[i+1] || '輪空 (BYE)',
+                  winner: pool[i+1] ? null : pool[i],
+                  completed: !pool[i+1]
+                });
+              }
+            } else if (this.currentRound === 2) {
+              const prevMatches = this.bracketHistory[0];
+              const winners = prevMatches.map(m => m.winner).filter(Boolean);
+              const losers = prevMatches.map(m => (m.winner === m.p1 ? m.p2 : m.p1)).filter(p => p && p !== '輪空 (BYE)');
 
-            if (activePool.length <= 1) {
-              this.showNotification('單淘汰賽事已全部結束！冠軍為：' + (activePool[0] || '無'));
+              if (winners.length === 2) {
+                this.currentMatches.push({
+                  id: `r2_final`,
+                  title: '冠亞軍爭奪戰',
+                  p1: winners[0],
+                  p2: winners[1],
+                  winner: null,
+                  completed: false
+                });
+                if (losers.length >= 2) {
+                  this.currentMatches.push({
+                    id: `r2_3rd`,
+                    title: '季殿軍爭奪戰',
+                    p1: losers[0],
+                    p2: losers[1],
+                    winner: null,
+                    completed: false
+                  });
+                }
+              } else if (winners.length > 2) {
+                for (let i = 0; i < winners.length; i += 2) {
+                  this.currentMatches.push({
+                    id: `r2_m${i/2}`,
+                    title: `準決賽 ${i/2 + 1}`,
+                    p1: winners[i],
+                    p2: winners[i+1] || '輪空',
+                    winner: winners[i+1] ? null : winners[i],
+                    completed: !winners[i+1]
+                  });
+                }
+              } else {
+                this.isTournamentFinished = true;
+              }
+            } else if (this.currentRound === 3) {
+              const semiMatches = this.bracketHistory[1];
+              const finalists = semiMatches.map(m => m.winner).filter(Boolean);
+              const semiLosers = semiMatches.map(m => (m.winner === m.p1 ? m.p2 : m.p1)).filter(Boolean);
+
+              if (finalists.length >= 2) {
+                this.currentMatches.push({
+                  id: `r3_final`,
+                  title: '冠亞軍爭奪戰',
+                  p1: finalists[0],
+                  p2: finalists[1],
+                  winner: null,
+                  completed: false
+                });
+              }
+              if (semiLosers.length >= 2) {
+                this.currentMatches.push({
+                  id: `r3_3rd`,
+                  title: '季殿軍爭奪戰',
+                  p1: semiLosers[0],
+                  p2: semiLosers[1],
+                  winner: null,
+                  completed: false
+                });
+              }
+            }
+          } else {
+            // 瑞士制配對邏輯
+            if (this.currentRound > this.totalRounds) {
+              this.isTournamentFinished = true;
               return;
             }
 
-            for (let i = 0; i < activePool.length; i += 2) {
-              this.currentMatches.push({
-                id: `r${this.currentRound}_m${i/2}`,
-                p1: activePool[i],
-                p2: activePool[i+1] || '輪空 (BYE)',
-                winner: activePool[i+1] ? null : activePool[i],
-                completed: !activePool[i+1]
-              });
+            const pool = [...this.players].sort((a, b) => b.wins - a.wins || b.points - a.points);
+            let paired = new Set();
+
+            for (let i = 0; i < pool.length; i++) {
+              if (paired.has(pool[i].name)) continue;
+              let p1 = pool[i];
+              paired.add(p1.name);
+
+              let p2 = null;
+              // 找未配對且勝場接近的對手
+              for (let j = i + 1; j < pool.length; j++) {
+                if (!paired.has(pool[j].name) && !p1.opponents.includes(pool[j].name)) {
+                  p2 = pool[j];
+                  break;
+                }
+              }
+              // 若找不到未對戰過的，就找任意未配對的
+              if (!p2) {
+                for (let j = i + 1; j < pool.length; j++) {
+                  if (!paired.has(pool[j].name)) {
+                    p2 = pool[j];
+                    break;
+                  }
+                }
+              }
+
+              if (p2) {
+                paired.add(p2.name);
+                p1.opponents.push(p2.name);
+                p2.opponents.push(p1.name);
+
+                this.currentMatches.push({
+                  id: `swiss_r${this.currentRound}_m${this.currentMatches.length}`,
+                  title: `第 ${this.currentRound} 輪 桌次 ${this.currentMatches.length + 1}`,
+                  p1: p1.name,
+                  p2: p2.name,
+                  score1: 0,
+                  score2: 0,
+                  winner: null,
+                  completed: false
+                });
+              } else {
+                // 奇數輪空 (BYE)
+                this.currentMatches.push({
+                  id: `swiss_r${this.currentRound}_bye`,
+                  title: `第 ${this.currentRound} 輪 (輪空)`,
+                  p1: p1.name,
+                  p2: '輪空 (BYE)',
+                  score1: 4,
+                  score2: 0,
+                  winner: p1.name,
+                  completed: true
+                });
+              }
             }
-          } else {
-            // 瑞士制簡化配對
-            const pool = [...this.players].sort(() => Math.random() - 0.5);
-            for (let i = 0; i < pool.length; i += 2) {
-              this.currentMatches.push({
-                id: `swiss_r${this.currentRound}_m${i/2}`,
-                p1: pool[i].name,
-                p2: pool[i+1] ? pool[i+1].name : '輪空',
-                winner: pool[i+1] ? null : pool[i].name,
-                completed: !pool[i+1]
-              });
-            }
+          }
+        },
+
+        setSwissScore(matchIndex, playerKey, score) {
+          const match = this.currentMatches[matchIndex];
+          if (playerKey === 'p1') match.score1 = score;
+          if (playerKey === 'p2') match.score2 = score;
+
+          if (match.score1 !== undefined && match.score2 !== undefined) {
+            match.completed = true;
+            if (match.score1 > match.score2) match.winner = match.p1;
+            else if (match.score2 > match.score1) match.winner = match.p2;
+            else match.winner = '平手';
           }
         },
 
@@ -327,26 +589,33 @@
         nextRound() {
           const uncompleted = this.currentMatches.some(m => !m.completed);
           if (uncompleted) {
-            this.showNotification('還有桌次尚未登記勝負，請先完成比賽！');
+            this.showNotification('還有桌次尚未完成登記，請先完成！');
             return;
           }
 
-          // 紀錄本輪
           this.bracketHistory.push(JSON.parse(JSON.stringify(this.currentMatches)));
 
-          // 更新戰績分數
-          this.currentMatches.forEach(m => {
-            if (m.winner) {
-              const pWin = this.players.find(p => p.name === m.winner);
-              if (pWin) pWin.wins++;
-              const loserName = (m.winner === m.p1) ? m.p2 : m.p1;
-              const pLose = this.players.find(p => p.name === loserName);
-              if (pLose) pLose.losses++;
-            }
-          });
+          if (this.tournamentType === 'swiss') {
+            this.currentMatches.forEach(m => {
+              const p1Obj = this.players.find(p => p.name === m.p1);
+              const p2Obj = this.players.find(p => p.name === m.p2);
+              if (p1Obj && m.score1 !== undefined) p1Obj.points += m.score1;
+              if (p2Obj && m.score2 !== undefined) p2Obj.points += m.score2;
+
+              if (m.winner === m.p1 && p1Obj) p1Obj.wins++;
+              if (m.winner === m.p2 && p2Obj) p2Obj.wins++;
+            });
+          }
 
           this.currentRound++;
+          if (this.currentRound > this.totalRounds && this.tournamentType === 'swiss') {
+            this.isTournamentFinished = true;
+            this.showNotification('瑞士制所有輪次已全部打完！');
+            return;
+          }
+
           this.generateRoundMatches();
+          this.showNotification(`已成功進入第 ${this.currentRound} 輪賽事！`);
         }
       }
     }
