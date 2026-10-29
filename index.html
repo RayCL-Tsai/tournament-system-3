@@ -38,8 +38,9 @@
       </div>
 
       <div class="flex flex-wrap gap-2">
-        <button @click="copyViewerLink()" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-share-nodes text-indigo-400"></i> 複製即時觀眾連結
+        <button @click="copyViewerLink()" :class="!roomReady ? 'opacity-50 cursor-not-allowed' : ''" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm transition flex items-center gap-2">
+          <i class="fa-solid fa-share-nodes text-indigo-400"></i> 
+          <span x-text="roomReady ? '複製即時觀眾連結' : '雲端連線中...'"></span>
         </button>
         <button @click="toggleMode()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition flex items-center gap-2 font-medium">
           <i class="fa-solid" :class="isHost ? 'fa-eye' : 'fa-user-gear'"></i>
@@ -85,11 +86,53 @@
       </div>
 
       <!-- Tournament Finished Banner -->
-      <div x-show="isTournamentFinished" class="bg-gradient-to-r from-emerald-900/80 to-teal-900/80 p-6 rounded-2xl border border-emerald-500 text-center space-y-2">
+      <div x-show="isTournamentFinished" class="bg-gradient-to-r from-emerald-900/90 via-teal-900/90 to-slate-900 p-6 rounded-2xl border border-emerald-500 text-center space-y-4 shadow-2xl">
         <i class="fa-solid fa-crown text-4xl text-yellow-400 animate-bounce"></i>
-        <h3 class="text-2xl font-bold text-white">賽事已圓滿結束！</h3>
-        <p class="text-slate-300 text-sm">請前往「即時排行榜」或「樹狀賽程圖」查看最終名次與冠軍得主。</p>
+        <h3 class="text-2xl font-bold text-white">賽事已圓滿結束！最終名次公布</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto pt-2" x-show="podium.first">
+          <!-- 冠軍 -->
+          <div class="bg-slate-900/90 border-2 border-yellow-400 rounded-xl p-4 flex flex-col items-center shadow-lg">
+            <span class="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-1"><i class="fa-solid fa-trophy mr-1"></i>冠軍 Champion</span>
+            <span class="text-xl font-extrabold text-white" x-text="podium.first || '-'"></span>
+          </div>
+          <!-- 亞軍 -->
+          <div class="bg-slate-900/90 border-2 border-slate-300 rounded-xl p-4 flex flex-col items-center shadow-lg">
+            <span class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1"><i class="fa-solid fa-medal mr-1"></i>亞軍 2nd Place</span>
+            <span class="text-xl font-extrabold text-white" x-text="podium.second || '-'"></span>
+          </div>
+          <!-- 季軍 -->
+          <div class="bg-slate-900/90 border-2 border-amber-600 rounded-xl p-4 flex flex-col items-center shadow-lg">
+            <span class="text-xs font-bold text-amber-500 uppercase tracking-wider mb-1"><i class="fa-solid fa-award mr-1"></i>季軍 3rd Place</span>
+            <span class="text-xl font-extrabold text-white" x-text="podium.third || '-'"></span>
+          </div>
+        </div>
+        <p x-show="podium.fourth" class="text-slate-300 text-sm font-medium">殿軍（第 4 名）：<span class="text-indigo-300 font-bold" x-text="podium.fourth"></span></p>
       </div>
+
+      <!-- 三強循環賽即時積分預覽表 -->
+      <template x-if="tournamentType === 'knockout' && currentMatches.some(m => m.isRoundRobinGroup)">
+        <div class="bg-slate-800/90 border border-indigo-500/40 rounded-xl p-4 shadow-md">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
+            <h3 class="text-sm font-bold text-indigo-300 flex items-center gap-2">
+              <i class="fa-solid fa-ranking-star"></i> 三強小組循環賽 即時戰況（先比勝場，同勝場比總得分，若再同分則自動加賽）
+            </h3>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <template x-for="(stat, sIdx) in roundRobinLiveStandings" :key="stat.name">
+              <div class="bg-slate-900/80 border border-slate-700 rounded-lg p-3 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" :class="sIdx === 0 ? 'bg-yellow-500 text-slate-950' : (sIdx === 1 ? 'bg-slate-300 text-slate-950' : 'bg-amber-700 text-white')" x-text="sIdx + 1"></span>
+                  <span class="font-bold text-slate-100" x-text="stat.name"></span>
+                </div>
+                <div class="text-xs space-x-2">
+                  <span class="text-emerald-400 font-bold" x-text="stat.wins + ' 勝'"></span>
+                  <span class="text-indigo-300 font-bold" x-text="stat.points + ' 分'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
 
       <!-- Match Cards Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -101,23 +144,23 @@
             </div>
 
             <!-- Player 1 -->
-            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner === match.p1 ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500' : 'bg-slate-900/50 border-transparent gap-2'">
+            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner && match.winner === match.p1 ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500' : 'bg-slate-900/50 border-transparent gap-2'">
               <div class="flex items-center gap-2">
-                <span class="font-medium text-lg" x-text="match.p1"></span>
-                <template x-if="match.winner === match.p1">
+                <span class="font-medium text-lg" x-text="match.p1 || '等待晉級 (TBD)'"></span>
+                <template x-if="match.winner && match.winner === match.p1">
                   <span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded font-bold shadow"><i class="fa-solid fa-crown mr-1"></i>勝出</span>
                 </template>
               </div>
               <div class="flex items-center gap-2">
-                <template x-if="tournamentType === 'swiss'">
+                <template x-if="tournamentType === 'swiss' || match.isRoundRobinGroup || match.isTieBreaker">
                   <div class="flex flex-wrap gap-1 justify-end">
                     <template x-for="score in [0,1,2,3,4,5,6]">
-                      <button @click="isHost && setSwissScore(idx, 'p1', score)" :class="match.score1 === score ? 'bg-indigo-600 text-white shadow ring-2 ring-indigo-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
+                      <button @click="isHost && match.p1 && match.p2 && (match.isRoundRobinGroup || match.isTieBreaker ? setRoundRobinScore(idx, 'p1', score) : setSwissScore(idx, 'p1', score))" :class="match.score1 === score ? 'bg-indigo-600 text-white shadow ring-2 ring-indigo-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
                     </template>
                   </div>
                 </template>
-                <template x-if="tournamentType === 'knockout'">
-                  <button x-show="isHost" @click="setWinner(idx, match.p1)" :class="match.winner === match.p1 ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'" class="px-3 py-1.5 rounded text-sm transition font-bold">
+                <template x-if="tournamentType === 'knockout' && !match.isRoundRobinGroup && !match.isTieBreaker">
+                  <button x-show="isHost && match.p1 && match.p1 !== '等待晉級 (TBD)' && match.p1 !== '輪空 (BYE)'" @click="setWinner(idx, match.p1)" :class="match.winner === match.p1 ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'" class="px-3 py-1.5 rounded text-sm transition font-bold">
                     <i class="fa-solid fa-trophy mr-1"></i> 勝出
                   </button>
                 </template>
@@ -127,23 +170,23 @@
             <div class="text-center text-xs text-slate-500 font-bold my-1">VS</div>
 
             <!-- Player 2 -->
-            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner === match.p2 ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500' : 'bg-slate-900/50 border-transparent gap-2'">
+            <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner && match.winner === match.p2 ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500' : 'bg-slate-900/50 border-transparent gap-2'">
               <div class="flex items-center gap-2">
-                <span class="font-medium text-lg" x-text="match.p2"></span>
-                <template x-if="match.winner === match.p2">
+                <span class="font-medium text-lg" x-text="match.p2 || '等待晉級 (TBD)'"></span>
+                <template x-if="match.winner && match.winner === match.p2">
                   <span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded font-bold shadow"><i class="fa-solid fa-crown mr-1"></i>勝出</span>
                 </template>
               </div>
               <div class="flex items-center gap-2">
-                <template x-if="tournamentType === 'swiss'">
+                <template x-if="tournamentType === 'swiss' || match.isRoundRobinGroup || match.isTieBreaker">
                   <div class="flex flex-wrap gap-1 justify-end">
                     <template x-for="score in [0,1,2,3,4,5,6]">
-                      <button @click="isHost && setSwissScore(idx, 'p2', score)" :class="match.score2 === score ? 'bg-indigo-600 text-white shadow ring-2 ring-indigo-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
+                      <button @click="isHost && match.p1 && match.p2 && (match.isRoundRobinGroup || match.isTieBreaker ? setRoundRobinScore(idx, 'p2', score) : setSwissScore(idx, 'p2', score))" :class="match.score2 === score ? 'bg-indigo-600 text-white shadow ring-2 ring-indigo-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
                     </template>
                   </div>
                 </template>
-                <template x-if="tournamentType === 'knockout'">
-                  <button x-show="isHost" @click="setWinner(idx, match.p2)" :class="match.winner === match.p2 ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'" class="px-3 py-1.5 rounded text-sm transition font-bold">
+                <template x-if="tournamentType === 'knockout' && !match.isRoundRobinGroup && !match.isTieBreaker">
+                  <button x-show="isHost && match.p2 && match.p2 !== '等待晉級 (TBD)' && match.p2 !== '輪空 (BYE)'" @click="setWinner(idx, match.p2)" :class="match.winner === match.p2 ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'" class="px-3 py-1.5 rounded text-sm transition font-bold">
                     <i class="fa-solid fa-trophy mr-1"></i> 勝出
                   </button>
                 </template>
@@ -159,22 +202,22 @@
       <!-- 單淘汰樹狀圖視角 -->
       <template x-if="tournamentType === 'knockout'">
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 overflow-x-auto">
-          <h3 class="text-lg font-bold mb-4 text-indigo-300"><i class="fa-solid fa-sitemap mr-2"></i>單淘汰對戰樹狀圖 (含季殿軍)</h3>
-          <div class="flex gap-8 min-w-[700px]">
+          <h3 class="text-lg font-bold mb-4 text-indigo-300"><i class="fa-solid fa-sitemap mr-2"></i>單淘汰完整對戰樹狀圖 (含特殊賽制與季殿軍)</h3>
+          <div class="flex gap-8 min-w-[800px]">
             <template x-for="(roundMatches, rIdx) in bracketHistory" :key="rIdx">
-              <div class="flex flex-col justify-around flex-1 gap-4">
-                <div class="text-xs font-bold text-slate-400 text-center uppercase tracking-wider mb-2" x-text="'階段 ' + (rIdx + 1)"></div>
+              <div class="flex flex-col justify-around flex-1 gap-3">
+                <div class="text-xs font-bold text-slate-400 text-center uppercase tracking-wider mb-2" x-text="roundMatches[0] && roundMatches[0].roundTitle ? roundMatches[0].roundTitle : ('第 ' + (rIdx + 1) + ' 輪')"></div>
                 <template x-for="m in roundMatches" :key="m.id">
-                  <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 space-y-2">
-                    <div class="text-xs text-indigo-400 font-semibold mb-1" x-text="m.title || '對戰組'"></div>
-                    <div class="flex justify-between text-sm" :class="m.winner === m.p1 ? 'text-emerald-400 font-bold' : 'text-slate-300'">
+                  <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 space-y-2 text-xs">
+                    <div class="text-indigo-400 font-semibold mb-1" x-text="m.title || '對戰組'"></div>
+                    <div class="flex justify-between text-sm py-1 px-2 rounded" :class="m.winner && m.winner === m.p1 ? 'bg-emerald-950/60 text-emerald-400 font-bold border border-emerald-600/50' : 'text-slate-300'">
                       <span x-text="m.p1 || 'TBD'"></span>
-                      <i x-show="m.winner === m.p1" class="fa-solid fa-check text-xs"></i>
+                      <i x-show="m.winner && m.winner === m.p1" class="fa-solid fa-check text-xs"></i>
                     </div>
                     <div class="border-t border-slate-800"></div>
-                    <div class="flex justify-between text-sm" :class="m.winner === m.p2 ? 'text-emerald-400 font-bold' : 'text-slate-300'">
+                    <div class="flex justify-between text-sm py-1 px-2 rounded" :class="m.winner && m.winner === m.p2 ? 'bg-emerald-950/60 text-emerald-400 font-bold border border-emerald-600/50' : 'text-slate-300'">
                       <span x-text="m.p2 || 'TBD'"></span>
-                      <i x-show="m.winner === m.p2" class="fa-solid fa-check text-xs"></i>
+                      <i x-show="m.winner && m.winner === m.p2" class="fa-solid fa-check text-xs"></i>
                     </div>
                   </div>
                 </template>
@@ -239,11 +282,11 @@
           </div>
         </div>
 
-        <!-- 人數快速設定 (支援 4 / 6 / 8 / 12 / 16 / 20 / 24 / 28 / 32) -->
+        <!-- 人數快速設定 (支援 4 / 6 / 8 / 12 / 16 / 18 / 20 / 24 / 28 / 32 / 40 / 48) -->
         <div class="space-y-2">
           <label class="block font-medium text-slate-300">快速設定選手人數</label>
           <div class="flex flex-wrap gap-2">
-            <template x-for="cnt in [4, 6, 8, 12, 16, 20, 24, 28, 32]">
+            <template x-for="cnt in [4, 6, 8, 12, 16, 18, 20, 24, 28, 32, 40, 48]">
               <button @click="setPlayerCount(cnt)" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg text-sm font-bold transition" x-text="cnt + ' 人'"></button>
             </template>
           </div>
@@ -299,7 +342,9 @@
         currentMatches: [],
         bracketHistory: [],
         isTournamentFinished: false,
+        podium: { first: '', second: '', third: '', fourth: '' },
         cloudStatus: '連線中...',
+        roomReady: false,
         toast: { show: false, message: '' },
         _isSyncing: false,
         lastRemoteUpdate: 0,
@@ -316,19 +361,37 @@
           return 5;
         },
 
+        get roundRobinLiveStandings() {
+          let stats = {};
+          this.currentMatches.forEach(m => {
+            if (!m.isRoundRobinGroup) return;
+            if (m.p1 && !stats[m.p1]) stats[m.p1] = { name: m.p1, wins: 0, points: 0 };
+            if (m.p2 && !stats[m.p2]) stats[m.p2] = { name: m.p2, wins: 0, points: 0 };
+            if (m.completed) {
+              if (m.p1) stats[m.p1].points += (m.score1 || 0);
+              if (m.p2) stats[m.p2].points += (m.score2 || 0);
+              if (m.winner === m.p1 && m.p1) stats[m.p1].wins++;
+              if (m.winner === m.p2 && m.p2) stats[m.p2].wins++;
+            }
+          });
+          return Object.values(stats).sort((a, b) => (b.wins - a.wins) || (b.points - a.points));
+        },
+
         get sortedPlayers() {
           this.players.forEach(p => {
+            if (!p.opponents) p.opponents = [];
+            if (p.points === undefined) p.points = 0;
             p.buchholz = 0;
             p.opponents.forEach(oppName => {
               const opp = this.players.find(x => x.name === oppName);
-              if (opp) p.buchholz += opp.points;
+              if (opp) p.buchholz += (opp.points || 0);
             });
           });
 
           return [...this.players].sort((a, b) => {
-            if (b.wins !== a.wins) return b.wins - a.wins;
+            if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
             if (b.buchholz !== a.buchholz) return b.buchholz - a.buchholz;
-            return b.points - a.points;
+            return (b.points || 0) - (a.points || 0);
           });
         },
 
@@ -352,6 +415,7 @@
             let roomId = urlParams.get('room');
 
             if (!roomId && this.isHost) {
+              this.cloudStatus = '正在建立雲端房間...';
               try {
                 const res = await fetch('https://jsonblob.com/api/jsonBlob', {
                   method: 'POST',
@@ -368,14 +432,16 @@
                   }
                 }
               } catch (fetchErr) {
-                console.warn("Cloud sync unavailable (Network/CORS restriction), falling back to Local Mode.");
+                console.warn("Cloud sync unavailable, falling back to Local Mode.", fetchErr);
               }
             }
 
             if (roomId) {
+              this.roomReady = true;
               this.cloudStatus = '雲端即時同步已連線';
 
               if (!this.isHost) {
+                // Viewer polling loop (every 2.5s)
                 setInterval(async () => {
                   try {
                     const res = await fetch(`https://jsonblob.com/api/jsonBlob/${roomId}`, {
@@ -388,25 +454,37 @@
                         this.tournamentType = data.tournamentType || 'swiss';
                         this.currentRound = data.currentRound || 1;
                         this.totalRounds = data.totalRounds || 4;
-                        this.players = data.players || [];
+                        this.players = (data.players || []).map(p => ({
+                          name: p.name || '',
+                          wins: p.wins || 0,
+                          losses: p.losses || 0,
+                          points: p.points || 0,
+                          buchholz: p.buchholz || 0,
+                          opponents: p.opponents || []
+                        }));
                         this.currentMatches = data.currentMatches || [];
                         this.bracketHistory = data.bracketHistory || [];
                         this.isTournamentFinished = data.isTournamentFinished || false;
+                        this.podium = data.podium || { first: '', second: '', third: '', fourth: '' };
                         this.lastRemoteUpdate = data.updatedAt;
                         setTimeout(() => { this._isSyncing = false; }, 100);
                         this.cloudStatus = '即時同步中 (Live)';
                       }
                     }
                   } catch (err) {
-                    this.cloudStatus = '本機離線模式';
+                    this.cloudStatus = '同步連線中斷，重試中...';
                   }
-                }, 3000);
+                }, 2500);
+              } else {
+                this.saveToCloud();
               }
             } else {
-              this.cloudStatus = '本機離線模式 (Local Mode)';
+              this.roomReady = false;
+              this.cloudStatus = '離線模式 (請檢查網路)';
             }
           } catch (e) {
-            this.cloudStatus = '本機離線模式 (Local Mode)';
+            this.roomReady = false;
+            this.cloudStatus = '離線模式';
           }
         },
 
@@ -428,6 +506,7 @@
                 currentMatches: this.currentMatches,
                 bracketHistory: this.bracketHistory,
                 isTournamentFinished: this.isTournamentFinished,
+                podium: this.podium,
                 updatedAt: Date.now()
               })
             });
@@ -452,6 +531,13 @@
         },
 
         copyViewerLink() {
+          const urlParams = new URLSearchParams(window.location.search);
+          const roomId = urlParams.get('room');
+          if (!roomId || !this.roomReady) {
+            this.showNotification('雲端房間正在建立中，請稍候 2 秒再點擊複製！');
+            return;
+          }
+
           const url = new URL(window.location.href);
           url.searchParams.set('mode', 'viewer');
           
@@ -525,151 +611,28 @@
           this.currentRound = 1;
           this.bracketHistory = [];
           this.isTournamentFinished = false;
+          this.podium = { first: '', second: '', third: '', fourth: '' };
 
-          this.generateRoundMatches();
+          this.generateFullTournament();
           this.activeTab = 'matches';
-          this.showNotification('賽事已重新設定並生成第一輪賽程！');
+          this.showNotification('賽事已重新設定並生成完整對戰樹狀圖與第一輪賽程！');
           this.saveToCloud();
         },
 
-        generateRoundMatches() {
+        generateSwissRound() {
           this.currentMatches = [];
-
-          if (this.tournamentType === 'knockout') {
-            if (this.currentRound === 1) {
-              const pool = [...this.players.map(p => p.name)];
-              for (let i = 0; i < pool.length; i += 2) {
-                this.currentMatches.push({
-                  id: `r1_m${i/2}`,
-                  title: `淘汰賽 第 1 輪 (桌次 ${i/2 + 1})`,
-                  p1: pool[i],
-                  p2: pool[i+1] || '輪空 (BYE)',
-                  winner: pool[i+1] ? null : pool[i],
-                  completed: !pool[i+1]
-                });
-              }
-            } else if (this.currentRound === 2) {
-              const prevMatches = this.bracketHistory[0];
-              const winners = prevMatches.map(m => m.winner).filter(Boolean);
-              const losers = prevMatches.map(m => (m.winner === m.p1 ? m.p2 : m.p1)).filter(p => p && p !== '輪空 (BYE)');
-
-              if (winners.length === 2) {
-                this.currentMatches.push({
-                  id: `r2_final`,
-                  title: '冠亞軍爭奪戰',
-                  p1: winners[0],
-                  p2: winners[1],
-                  winner: null,
-                  completed: false
-                });
-                if (losers.length >= 2) {
-                  this.currentMatches.push({
-                    id: `r2_3rd`,
-                    title: '季殿軍爭奪戰',
-                    p1: losers[0],
-                    p2: losers[1],
-                    winner: null,
-                    completed: false
-                  });
-                }
-              } else if (winners.length > 2) {
-                for (let i = 0; i < winners.length; i += 2) {
-                  this.currentMatches.push({
-                    id: `r2_m${i/2}`,
-                    title: `準決賽 ${i/2 + 1}`,
-                    p1: winners[i],
-                    p2: winners[i+1] || '輪空',
-                    winner: winners[i+1] ? null : winners[i],
-                    completed: !winners[i+1]
-                  });
-                }
-              } else {
-                this.isTournamentFinished = true;
-              }
-            } else if (this.currentRound === 3) {
-              const semiMatches = this.bracketHistory[1];
-              const finalists = semiMatches.map(m => m.winner).filter(Boolean);
-              const semiLosers = semiMatches.map(m => (m.winner === m.p1 ? m.p2 : m.p1)).filter(Boolean);
-
-              if (finalists.length >= 2) {
-                this.currentMatches.push({
-                  id: `r3_final`,
-                  title: '冠亞軍爭奪戰',
-                  p1: finalists[0],
-                  p2: finalists[1],
-                  winner: null,
-                  completed: false
-                });
-              }
-              if (semiLosers.length >= 2) {
-                this.currentMatches.push({
-                  id: `r3_3rd`,
-                  title: '季殿軍爭奪戰',
-                  p1: semiLosers[0],
-                  p2: semiLosers[1],
-                  winner: null,
-                  completed: false
-                });
-              }
-            }
-          } else {
-            if (this.currentRound > this.totalRounds) {
-              this.isTournamentFinished = true;
-              return;
-            }
-
-            const pool = [...this.players].sort((a, b) => b.wins - a.wins || b.points - a.points);
-            let paired = new Set();
-
-            for (let i = 0; i < pool.length; i++) {
-              if (paired.has(pool[i].name)) continue;
-              let p1 = pool[i];
-              paired.add(p1.name);
-
-              let p2 = null;
-              for (let j = i + 1; j < pool.length; j++) {
-                if (!paired.has(pool[j].name) && !p1.opponents.includes(pool[j].name)) {
-                  p2 = pool[j];
-                  break;
-                }
-              }
-              if (!p2) {
-                for (let j = i + 1; j < pool.length; j++) {
-                  if (!paired.has(pool[j].name)) {
-                    p2 = pool[j];
-                    break;
-                  }
-                }
-              }
-
-              if (p2) {
-                paired.add(p2.name);
-                p1.opponents.push(p2.name);
-                p2.opponents.push(p1.name);
-
-                this.currentMatches.push({
-                  id: `swiss_r${this.currentRound}_m${this.currentMatches.length}`,
-                  title: `第 ${this.currentRound} 輪 桌次 ${this.currentMatches.length + 1}`,
-                  p1: p1.name,
-                  p2: p2.name,
-                  score1: undefined,
-                  score2: undefined,
-                  winner: null,
-                  completed: false
-                });
-              } else {
-                this.currentMatches.push({
-                  id: `swiss_r${this.currentRound}_bye`,
-                  title: `第 ${this.currentRound} 輪 (輪空)`,
-                  p1: p1.name,
-                  p2: '輪空 (BYE)',
-                  score1: 4,
-                  score2: 0,
-                  winner: p1.name,
-                  completed: true
-                });
-              }
-            }
+          const pool = [...this.players].sort(() => Math.random() - 0.5);
+          for (let i = 0; i < pool.length; i += 2) {
+            this.currentMatches.push({
+              id: `swiss_r${this.currentRound}_m${i/2}`,
+              title: `第 ${this.currentRound} 輪桌次 ${i/2 + 1}`,
+              p1: pool[i].name,
+              p2: pool[i+1] ? pool[i+1].name : '輪空 (BYE)',
+              score1: 0,
+              score2: 0,
+              winner: pool[i+1] ? null : pool[i].name,
+              completed: !pool[i+1]
+            });
           }
         },
 
@@ -681,6 +644,13 @@
 
           if (match.score1 !== undefined && match.score2 !== undefined) {
             match.completed = true;
+            const p1Obj = this.players.find(p => p.name === match.p1);
+            const p2Obj = this.players.find(p => p.name === match.p2);
+            if (p1Obj && p2Obj && match.p2 !== '輪空 (BYE)') {
+              if (!p1Obj.opponents.includes(match.p2)) p1Obj.opponents.push(match.p2);
+              if (!p2Obj.opponents.includes(match.p1)) p2Obj.opponents.push(match.p1);
+            }
+
             if (match.score1 > match.score2) match.winner = match.p1;
             else if (match.score2 > match.score1) match.winner = match.p2;
             else match.winner = '平手';
@@ -688,12 +658,278 @@
           this.saveToCloud();
         },
 
-        setWinner(matchIndex, winnerName) {
+        setRoundRobinScore(matchIndex, playerKey, score) {
           if (!this.isHost) return;
+          const match = this.currentMatches[matchIndex];
+          if (playerKey === 'p1') match.score1 = score;
+          if (playerKey === 'p2') match.score2 = score;
+
+          if (match.score1 !== undefined && match.score2 !== undefined) {
+            match.completed = true;
+            if (match.score1 > match.score2) match.winner = match.p1;
+            else if (match.score2 > match.score1) match.winner = match.p2;
+            else match.winner = '平手';
+          }
+          if (this.bracketHistory[this.currentRound - 1] && !match.isTieBreaker) {
+            this.bracketHistory[this.currentRound - 1][matchIndex] = match;
+          }
+          this.saveToCloud();
+        },
+
+        setWinner(matchIndex, winnerName) {
+          if (!this.isHost || !winnerName) return;
           const match = this.currentMatches[matchIndex];
           match.winner = winnerName;
           match.completed = true;
+
+          if (this.bracketHistory[this.currentRound - 1]) {
+            this.bracketHistory[this.currentRound - 1][matchIndex] = match;
+          }
+
+          // Propagate winner in knockout mode immediately
+          if (this.tournamentType === 'knockout' && !match.isRoundRobinGroup && !match.isTieBreaker) {
+            this.autoPopulateNextRound(this.currentRound - 1);
+          }
           this.saveToCloud();
+        },
+
+        autoPopulateNextRound(roundIdx) {
+          const currentRoundMatches = this.bracketHistory[roundIdx];
+          const nextRoundMatches = this.bracketHistory[roundIdx + 1];
+          if (!currentRoundMatches || !nextRoundMatches) return;
+
+          // Case 1: Next round is 3-player Round Robin
+          if (nextRoundMatches.some(m => m.isRoundRobinGroup)) {
+            const advancing = currentRoundMatches.map(m => m.winner).filter(Boolean);
+            nextRoundMatches[0].p1 = advancing[0] || '';
+            nextRoundMatches[0].p2 = advancing[1] || '';
+            nextRoundMatches[1].p1 = advancing[1] || '';
+            nextRoundMatches[1].p2 = advancing[2] || '';
+            nextRoundMatches[2].p1 = advancing[0] || '';
+            nextRoundMatches[2].p2 = advancing[2] || '';
+            return;
+          }
+
+          // Case 2: Semifinals (2 matches) advancing to Finals + 3rd Place Match
+          if (currentRoundMatches.length === 2 && nextRoundMatches.length === 2 && nextRoundMatches[1].id === 'third') {
+            const m0 = currentRoundMatches[0];
+            const m1 = currentRoundMatches[1];
+
+            nextRoundMatches[0].p1 = m0.winner || '';
+            nextRoundMatches[1].p1 = m0.winner ? (m0.winner === m0.p1 ? m0.p2 : m0.p1) : '';
+
+            nextRoundMatches[0].p2 = m1.winner || '';
+            nextRoundMatches[1].p2 = m1.winner ? (m1.winner === m1.p1 ? m1.p2 : m1.p1) : '';
+            return;
+          }
+
+          // Case 3: Unified slot propagation (supports standard binary rounds AND rounds with BYE slots)
+          const slots = [];
+          nextRoundMatches.forEach(nm => {
+            if (nm.isByeMatch) {
+              slots.push({ match: nm, key: 'p1', isBye: true });
+            } else {
+              slots.push({ match: nm, key: 'p1', isBye: false });
+              slots.push({ match: nm, key: 'p2', isBye: false });
+            }
+          });
+
+          let hasByeUpdated = false;
+          currentRoundMatches.forEach((m, idx) => {
+            const slot = slots[idx];
+            if (!slot) return;
+            slot.match[slot.key] = m.winner || '';
+            if (slot.isBye) {
+              slot.match.winner = m.winner || null;
+              slot.match.completed = Boolean(m.winner);
+              if (m.winner) hasByeUpdated = true;
+            }
+          });
+
+          if (hasByeUpdated) {
+            this.autoPopulateNextRound(roundIdx + 1);
+          }
+        },
+
+        generateFullTournament() {
+          this.bracketHistory = [];
+          const names = this.players.map(p => p.name);
+          const pool = [...names];
+          const n = this.players.length;
+
+          if (this.tournamentType === 'knockout') {
+            if (n === 4 || n === 8 || n === 16 || n === 32) {
+              let currentCount = n;
+              let rIndex = 1;
+              while (currentCount >= 2) {
+                let matchCount = currentCount / 2;
+                let roundMatches = [];
+                for (let i = 0; i < matchCount; i++) {
+                  let title = currentCount === 2 ? `冠亞軍爭奪戰` : (currentCount === 4 ? `準決賽 ${i+1}` : `第 ${rIndex} 輪晉級賽 ${i+1}`);
+                  let roundTitle = currentCount === 2 ? '決賽' : (currentCount === 4 ? '準決賽' : `第 ${rIndex} 輪`);
+                  
+                  if (rIndex === 1) {
+                    roundMatches.push({ id: `r1_${i}`, roundTitle: '第一輪', title: `桌次 ${i+1}`, p1: pool[i*2]||'', p2: pool[i*2+1]||'', winner: null, completed: false });
+                  } else {
+                    roundMatches.push({ id: `r${rIndex}_${i}`, roundTitle, title, p1: '', p2: '', winner: null, completed: false });
+                  }
+                }
+                this.bracketHistory.push(roundMatches);
+                currentCount = matchCount;
+                rIndex++;
+                if (currentCount === 1) break;
+              }
+              let finals = this.bracketHistory[this.bracketHistory.length - 1];
+              let third = { id: `third`, roundTitle: '決賽', title: '季殿軍爭奪戰', p1: '', p2: '', winner: null, completed: false };
+              finals.push(third);
+
+            } else if (n === 6 || n === 12 || n === 18 || n === 24 || n === 48) {
+              if (n === 6) {
+                let r1 = [];
+                for (let i = 0; i < 3; i++) r1.push({ id: `r1_${i}`, roundTitle: '第一輪 (6進3)', title: `晉級賽 ${i+1}`, p1: pool[i*2]||'', p2: pool[i*2+1]||'', winner: null, completed: false });
+                this.bracketHistory.push(r1);
+              } else if (n === 12) {
+                let r1 = [];
+                for (let i = 0; i < 6; i++) r1.push({ id: `r1_${i}`, roundTitle: '第一輪 (12進6)', title: `桌次 ${i+1}`, p1: pool[i*2]||'', p2: pool[i*2+1]||'', winner: null, completed: false });
+                this.bracketHistory.push(r1);
+                let r2 = [];
+                for (let i = 0; i < 3; i++) r2.push({ id: `r2_${i}`, roundTitle: '第二輪 (6進3)', title: `晉級賽 ${i+1}`, p1: '', p2: '', winner: null, completed: false });
+                this.bracketHistory.push(r2);
+              } else if (n === 18) {
+                let r1 = [];
+                for (let i = 0; i < 9; i++) r1.push({ id: `r1_${i}`, roundTitle: '第一輪 (18進9)', title: `桌次 ${i+1}`, p1: pool[i*2]||'', p2: pool[i*2+1]||'', winner: null, completed: false });
+                this.bracketHistory.push(r1);
+                let r2 = [];
+                for (let i = 0; i < 5; i++) {
+                  if (i === 0) r2.push({ id: `r2_0`, roundTitle: '第二輪 (9進5)', title: `輪空種子直通`, p1: '', p2: '輪空 (BYE)', winner: null, completed: false, isByeMatch: true });
+                  else r2.push({ id: `r2_${i}`, roundTitle: '第二輪 (9進5)', title: `晉級賽 ${i}`, p1: '', p2: '', winner: null, completed: false });
+                }
+                this.bracketHistory.push(r2);
+                let r3 = [];
+                for (let i = 0; i < 3; i++) {
+                  if (i === 0) r3.push({ id: `r3_0`, roundTitle: '第三輪 (5進3)', title: `輪空種子直通`, p1: '', p2: '輪空 (BYE)', winner: null, completed: false, isByeMatch: true });
+                  else r3.push({ id: `r3_${i}`, roundTitle: '第三輪 (5進3)', title: `晉級賽 ${i}`, p1: '', p2: '', winner: null, completed: false });
+                }
+                this.bracketHistory.push(r3);
+              } else if (n === 24 || n === 48) {
+                let matchCount = n / 2;
+                let rIndex = 1;
+                while (matchCount >= 3) {
+                  let roundMatches = [];
+                  for (let i = 0; i < matchCount; i++) {
+                    if (rIndex === 1) {
+                      roundMatches.push({ id: `r1_${i}`, roundTitle: `第一輪 (${n}進${n/2})`, title: `桌次 ${i+1}`, p1: pool[i*2]||'', p2: pool[i*2+1]||'', winner: null, completed: false });
+                    } else {
+                      roundMatches.push({ id: `r${rIndex}_${i}`, roundTitle: `第 ${rIndex} 輪 (${matchCount*2}進${matchCount})`, title: `晉級賽 ${i+1}`, p1: '', p2: '', winner: null, completed: false });
+                    }
+                  }
+                  this.bracketHistory.push(roundMatches);
+                  matchCount = matchCount / 2;
+                  rIndex++;
+                }
+              }
+
+              let rr = [
+                { id: `rr_1`, roundTitle: '三強決賽循環賽', title: '循環賽 A vs B', p1: '', p2: '', score1: 0, score2: 0, winner: null, completed: false, isRoundRobinGroup: true },
+                { id: `rr_2`, roundTitle: '三強決賽循環賽', title: '循環賽 B vs C', p1: '', p2: '', score1: 0, score2: 0, winner: null, completed: false, isRoundRobinGroup: true },
+                { id: `rr_3`, roundTitle: '三強決賽循環賽', title: '循環賽 A vs C', p1: '', p2: '', score1: 0, score2: 0, winner: null, completed: false, isRoundRobinGroup: true }
+              ];
+              this.bracketHistory.push(rr);
+
+            } else if (n === 20 || n === 40) {
+              // 20 -> 10 -> 5 -> 4 (3人輪空 + 2人打一場) -> 準決賽 -> 決賽
+              // 40 -> 20 -> 10 -> 5 -> 4 (3人輪空 + 2人打一場) -> 準決賽 -> 決賽
+              let matchCount = n / 2;
+              let rIndex = 1;
+              while (matchCount >= 5) {
+                let roundMatches = [];
+                for (let i = 0; i < matchCount; i++) {
+                  if (rIndex === 1) {
+                    roundMatches.push({ id: `r1_${i}`, roundTitle: `第一輪 (${n}進${n/2})`, title: `桌次 ${i+1}`, p1: pool[i*2]||'', p2: pool[i*2+1]||'', winner: null, completed: false });
+                  } else {
+                    roundMatches.push({ id: `r${rIndex}_${i}`, roundTitle: `第 ${rIndex} 輪 (${matchCount*2}進${matchCount})`, title: `晉級賽 ${i+1}`, p1: '', p2: '', winner: null, completed: false });
+                  }
+                }
+                this.bracketHistory.push(roundMatches);
+                matchCount = matchCount / 2;
+                rIndex++;
+              }
+
+              // 5進4 階段 (3場輪空直通 + 1場對戰)
+              let rFiveToFour = [
+                { id: `r5to4_bye1`, roundTitle: '5進4附加賽', title: '四強直通種子 1', p1: '', p2: '輪空 (BYE)', winner: null, completed: false, isByeMatch: true },
+                { id: `r5to4_bye2`, roundTitle: '5進4附加賽', title: '四強直通種子 2', p1: '', p2: '輪空 (BYE)', winner: null, completed: false, isByeMatch: true },
+                { id: `r5to4_bye3`, roundTitle: '5進4附加賽', title: '四強直通種子 3', p1: '', p2: '輪空 (BYE)', winner: null, completed: false, isByeMatch: true },
+                { id: `r5to4_playin`, roundTitle: '5進4附加賽', title: '四強決定戰 (5進4)', p1: '', p2: '', winner: null, completed: false }
+              ];
+              this.bracketHistory.push(rFiveToFour);
+
+              // 準決賽 (4進2)
+              let semis = [
+                { id: `semi_1`, roundTitle: '準決賽', title: '準決賽 1', p1: '', p2: '', winner: null, completed: false },
+                { id: `semi_2`, roundTitle: '準決賽', title: '準決賽 2', p1: '', p2: '', winner: null, completed: false }
+              ];
+              this.bracketHistory.push(semis);
+
+              // 決賽 (冠亞軍 + 季殿軍)
+              let finals = [
+                { id: `final_1`, roundTitle: '決賽', title: '冠亞軍爭奪戰', p1: '', p2: '', winner: null, completed: false },
+                { id: `third`, roundTitle: '決賽', title: '季殿軍爭奪戰', p1: '', p2: '', winner: null, completed: false }
+              ];
+              this.bracketHistory.push(finals);
+
+            } else if (n === 28) {
+              // 28 -> 14 -> 7 -> 4 (1人輪空 + 6人打3場) -> 準決賽 -> 決賽
+              let r1 = [];
+              for (let i = 0; i < 14; i++) r1.push({ id: `r1_${i}`, roundTitle: '第一輪 (28進14)', title: `桌次 ${i+1}`, p1: pool[i*2]||'', p2: pool[i*2+1]||'', winner: null, completed: false });
+              this.bracketHistory.push(r1);
+
+              let r2 = [];
+              for (let i = 0; i < 7; i++) r2.push({ id: `r2_${i}`, roundTitle: '第二輪 (14進7)', title: `晉級賽 ${i+1}`, p1: '', p2: '', winner: null, completed: false });
+              this.bracketHistory.push(r2);
+
+              let r3 = [
+                { id: `r7to4_bye`, roundTitle: '第三輪 (7進4)', title: '四強直通種子', p1: '', p2: '輪空 (BYE)', winner: null, completed: false, isByeMatch: true },
+                { id: `r7to4_1`, roundTitle: '第三輪 (7進4)', title: '八強晉級賽 1', p1: '', p2: '', winner: null, completed: false },
+                { id: `r7to4_2`, roundTitle: '第三輪 (7進4)', title: '八強晉級賽 2', p1: '', p2: '', winner: null, completed: false },
+                { id: `r7to4_3`, roundTitle: '第三輪 (7進4)', title: '八強晉級賽 3', p1: '', p2: '', winner: null, completed: false }
+              ];
+              this.bracketHistory.push(r3);
+
+              let semis = [
+                { id: `semi_1`, roundTitle: '準決賽', title: '準決賽 1', p1: '', p2: '', winner: null, completed: false },
+                { id: `semi_2`, roundTitle: '準決賽', title: '準決賽 2', p1: '', p2: '', winner: null, completed: false }
+              ];
+              this.bracketHistory.push(semis);
+
+              let finals = [
+                { id: `final_1`, roundTitle: '決賽', title: '冠亞軍爭奪戰', p1: '', p2: '', winner: null, completed: false },
+                { id: `third`, roundTitle: '決賽', title: '季殿軍爭奪戰', p1: '', p2: '', winner: null, completed: false }
+              ];
+              this.bracketHistory.push(finals);
+
+            } else {
+              // 其他自訂人數通用處理
+              let r1 = [];
+              for (let i = 0; i < pool.length; i += 2) {
+                const hasP2 = Boolean(pool[i+1]);
+                r1.push({
+                  id: `r1_${i/2}`,
+                  roundTitle: '第一輪',
+                  title: `桌次 ${i/2 + 1}`,
+                  p1: pool[i],
+                  p2: pool[i+1] || '輪空 (BYE)',
+                  winner: hasP2 ? null : pool[i],
+                  completed: !hasP2
+                });
+              }
+              this.bracketHistory.push(r1);
+            }
+
+            this.currentMatches = this.bracketHistory[0];
+          } else {
+            this.generateSwissRound();
+          }
         },
 
         nextRound() {
@@ -704,29 +940,197 @@
             return;
           }
 
-          this.bracketHistory.push(JSON.parse(JSON.stringify(this.currentMatches)));
-
           if (this.tournamentType === 'swiss') {
+            this.bracketHistory.push(JSON.parse(JSON.stringify(this.currentMatches)));
             this.currentMatches.forEach(m => {
               const p1Obj = this.players.find(p => p.name === m.p1);
               const p2Obj = this.players.find(p => p.name === m.p2);
-              if (p1Obj && m.score1 !== undefined) p1Obj.points += m.score1;
-              if (p2Obj && m.score2 !== undefined) p2Obj.points += m.score2;
+              if (p1Obj) {
+                if (p1Obj.points === undefined) p1Obj.points = 0;
+                if (m.score1 !== undefined) p1Obj.points += m.score1;
+              }
+              if (p2Obj) {
+                if (p2Obj.points === undefined) p2Obj.points = 0;
+                if (m.score2 !== undefined) p2Obj.points += m.score2;
+              }
 
-              if (m.winner === m.p1 && p1Obj) p1Obj.wins++;
-              if (m.winner === m.p2 && p2Obj) p2Obj.wins++;
+              if (m.winner === m.p1 && p1Obj) p1Obj.wins = (p1Obj.wins || 0) + 1;
+              if (m.winner === m.p2 && p2Obj) p2Obj.wins = (p2Obj.wins || 0) + 1;
             });
+
+            this.currentRound++;
+            if (this.currentRound > this.totalRounds) {
+              const finalRanks = this.sortedPlayers;
+              this.podium = {
+                first: finalRanks[0]?.name || '',
+                second: finalRanks[1]?.name || '',
+                third: finalRanks[2]?.name || '',
+                fourth: finalRanks[3]?.name || ''
+              };
+              this.isTournamentFinished = true;
+              this.showNotification('瑞士制所有輪次已全部打完！');
+              this.saveToCloud();
+              return;
+            }
+            this.generateSwissRound();
+          } else {
+            // 檢查是否為三強循環賽群組完成或加賽完成
+            if (this.currentMatches.some(m => m.isRoundRobinGroup || m.isTieBreaker)) {
+              const isHandlingTieBreaker = this.currentMatches.some(m => m.isTieBreaker);
+
+              if (isHandlingTieBreaker) {
+                const tbMatch = this.currentMatches[0];
+                if (!tbMatch.winner || tbMatch.winner === '平手') {
+                  this.showNotification('加賽不可平手，請點選分數分出高下！');
+                  return;
+                }
+                const winner = tbMatch.winner;
+                const loser = (winner === tbMatch.p1) ? tbMatch.p2 : tbMatch.p1;
+
+                if (tbMatch.tieType === 'first_second') {
+                  this.podium = {
+                    first: winner,
+                    second: loser,
+                    third: tbMatch.fixedThird || '',
+                    fourth: ''
+                  };
+                } else {
+                  this.podium = {
+                    first: tbMatch.fixedFirst || '',
+                    second: winner,
+                    third: loser,
+                    fourth: ''
+                  };
+                }
+
+                this.isTournamentFinished = true;
+                this.showNotification(`三強加賽結束！冠軍：${this.podium.first} | 亞軍：${this.podium.second} | 季軍：${this.podium.third}`);
+                this.saveToCloud();
+                return;
+              } else {
+                // 確保沒有平手場次
+                if (this.currentMatches.some(m => m.winner === '平手' || !m.winner)) {
+                  this.showNotification('循環賽每場對戰皆須分出勝負（不可同分平手）！');
+                  return;
+                }
+
+                let stats = {};
+                this.currentMatches.forEach(m => {
+                  if (m.p1 && !stats[m.p1]) stats[m.p1] = { name: m.p1, wins: 0, points: 0 };
+                  if (m.p2 && !stats[m.p2]) stats[m.p2] = { name: m.p2, wins: 0, points: 0 };
+
+                  stats[m.p1].points += (m.score1 || 0);
+                  stats[m.p2].points += (m.score2 || 0);
+
+                  if (m.winner === m.p1) stats[m.p1].wins++;
+                  if (m.winner === m.p2) stats[m.p2].wins++;
+                });
+
+                let sortedArr = Object.values(stats).sort((a, b) => {
+                  if (b.wins !== a.wins) return b.wins - a.wins;
+                  return b.points - a.points;
+                });
+
+                let p1 = sortedArr[0];
+                let p2 = sortedArr[1];
+                let p3 = sortedArr[2];
+
+                // 情境 A：三人勝場與總得分完全相同 -> 重打一輪循環賽
+                if (p1 && p2 && p3 && p1.wins === p2.wins && p1.points === p2.points && p2.wins === p3.wins && p2.points === p3.points) {
+                  this.currentMatches.forEach(m => {
+                    m.score1 = 0;
+                    m.score2 = 0;
+                    m.winner = null;
+                    m.completed = false;
+                  });
+                  this.showNotification(`三位選手皆為 ${p1.wins} 勝 ${p1.points} 分完全平手！已重置循環賽比分，請重新進行三強對戰！`);
+                  this.saveToCloud();
+                  return;
+                }
+
+                // 情境 B：第 1 與第 2 名同勝場且同得分 -> 加賽爭奪冠軍與亞軍
+                if (p1 && p2 && p1.wins === p2.wins && p1.points === p2.points) {
+                  this.currentMatches = [{
+                    id: 'tiebreaker_1st_2nd',
+                    roundTitle: '冠亞軍同分加賽',
+                    title: `冠軍爭奪附加賽：${p1.name} vs ${p2.name}`,
+                    p1: p1.name,
+                    p2: p2.name,
+                    score1: 0,
+                    score2: 0,
+                    winner: null,
+                    completed: false,
+                    isTieBreaker: true,
+                    tieType: 'first_second',
+                    fixedThird: p3?.name || ''
+                  }];
+                  this.showNotification(`選手 ${p1.name} 與 ${p2.name} 同為 ${p1.wins} 勝 ${p1.points} 分，已產生冠亞軍加賽桌次！`);
+                  this.saveToCloud();
+                  return;
+                }
+
+                // 情境 C（您的舉例 3）：第 2 與第 3 名同勝場且同得分 -> 加賽爭奪亞軍與季軍
+                if (p2 && p3 && p2.wins === p3.wins && p2.points === p3.points) {
+                  this.currentMatches = [{
+                    id: 'tiebreaker_2nd_3rd',
+                    roundTitle: '亞季軍同分加賽',
+                    title: `亞軍爭奪附加賽：${p2.name} vs ${p3.name}`,
+                    p1: p2.name,
+                    p2: p3.name,
+                    score1: 0,
+                    score2: 0,
+                    winner: null,
+                    completed: false,
+                    isTieBreaker: true,
+                    tieType: 'second_third',
+                    fixedFirst: p1?.name || ''
+                  }];
+                  this.showNotification(`冠軍為 ${p1.name}！選手 ${p2.name} 與 ${p3.name} 同為 ${p2.wins} 勝 ${p2.points} 分，已產生加賽桌次！`);
+                  this.saveToCloud();
+                  return;
+                }
+
+                // 情境 D（您的舉例 1 & 2）：名次直接分曉，直接結束並公布冠亞季軍
+                this.podium = {
+                  first: p1?.name || '',
+                  second: p2?.name || '',
+                  third: p3?.name || '',
+                  fourth: ''
+                };
+                this.isTournamentFinished = true;
+                this.showNotification(`三強循環賽圓滿結束！冠軍：${this.podium.first} | 亞軍：${this.podium.second} | 季軍：${this.podium.third}`);
+                this.saveToCloud();
+                return;
+              }
+            }
+
+            // 同步目前輪次並自動填入下一輪名單
+            this.bracketHistory[this.currentRound - 1] = this.currentMatches;
+            this.autoPopulateNextRound(this.currentRound - 1);
+
+            this.currentRound++;
+            if (this.currentRound <= this.bracketHistory.length) {
+              this.currentMatches = this.bracketHistory[this.currentRound - 1];
+            } else {
+              // 一般單淘汰決賽（含冠亞軍與季殿軍）完成時統計頒獎台名次
+              const lastRound = this.bracketHistory[this.bracketHistory.length - 1];
+              if (lastRound && lastRound.length >= 1) {
+                const finalMatch = lastRound[0];
+                const thirdMatch = lastRound[1];
+                this.podium = {
+                  first: finalMatch.winner || '',
+                  second: finalMatch.winner ? (finalMatch.winner === finalMatch.p1 ? finalMatch.p2 : finalMatch.p1) : '',
+                  third: thirdMatch ? (thirdMatch.winner || '') : '',
+                  fourth: (thirdMatch && thirdMatch.winner) ? (thirdMatch.winner === thirdMatch.p1 ? thirdMatch.p2 : thirdMatch.p1) : ''
+                };
+              }
+              this.isTournamentFinished = true;
+              this.showNotification(`單淘汰賽事圓滿結束！冠軍：${this.podium.first}`);
+              this.saveToCloud();
+              return;
+            }
           }
 
-          this.currentRound++;
-          if (this.currentRound > this.totalRounds && this.tournamentType === 'swiss') {
-            this.isTournamentFinished = true;
-            this.showNotification('瑞士制所有輪次已全部打完！');
-            this.saveToCloud();
-            return;
-          }
-
-          this.generateRoundMatches();
           this.showNotification(`已成功進入第 ${this.currentRound} 輪賽事！`);
           this.saveToCloud();
         }
