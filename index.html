@@ -139,20 +139,24 @@
         <template x-for="(match, idx) in currentMatches" :key="idx">
           <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 relative shadow-md">
             <div class="flex justify-between items-center mb-3 text-xs text-slate-400 border-b border-slate-700/60 pb-2">
-              <span class="font-bold text-slate-300" x-text="match.title || ('桌次 ' + (idx + 1))"></span>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-slate-300" x-text="match.title || ('桌次 ' + (idx + 1))"></span>
+                <span x-show="match.bracketTag" class="px-2 py-0.5 rounded bg-indigo-900/70 text-indigo-300 border border-indigo-700/60 font-semibold" x-text="match.bracketTag"></span>
+              </div>
               <span x-text="match.completed ? '已完成' : '進行中'" :class="match.completed ? 'text-emerald-400' : 'text-amber-400'"></span>
             </div>
 
             <!-- Player 1 -->
             <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner && match.winner === match.p1 ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500' : 'bg-slate-900/50 border-transparent gap-2'">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <span class="font-medium text-lg" x-text="match.p1 || '等待晉級 (TBD)'"></span>
+                <span x-show="tournamentType === 'swiss' && match.p1Record" class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-600 font-mono" x-text="match.p1Record"></span>
                 <template x-if="match.winner && match.winner === match.p1">
                   <span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded font-bold shadow"><i class="fa-solid fa-crown mr-1"></i>勝出</span>
                 </template>
               </div>
               <div class="flex items-center gap-2">
-                <template x-if="tournamentType === 'swiss' || match.isRoundRobinGroup || match.isTieBreaker">
+                <template x-if="(tournamentType === 'swiss' && match.p2 !== '輪空 (BYE)') || match.isRoundRobinGroup || match.isTieBreaker">
                   <div class="flex flex-wrap gap-1 justify-end">
                     <template x-for="score in [0,1,2,3,4,5,6]">
                       <button @click="isHost && match.p1 && match.p2 && (match.isRoundRobinGroup || match.isTieBreaker ? setRoundRobinScore(idx, 'p1', score) : setSwissScore(idx, 'p1', score))" :class="match.score1 === score ? 'bg-indigo-600 text-white shadow ring-2 ring-indigo-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
@@ -171,14 +175,15 @@
 
             <!-- Player 2 -->
             <div class="flex flex-col md:flex-row justify-between items-center my-2 p-3 rounded-lg border transition" :class="match.winner && match.winner === match.p2 ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500' : 'bg-slate-900/50 border-transparent gap-2'">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <span class="font-medium text-lg" x-text="match.p2 || '等待晉級 (TBD)'"></span>
+                <span x-show="tournamentType === 'swiss' && match.p2Record" class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-600 font-mono" x-text="match.p2Record"></span>
                 <template x-if="match.winner && match.winner === match.p2">
                   <span class="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded font-bold shadow"><i class="fa-solid fa-crown mr-1"></i>勝出</span>
                 </template>
               </div>
               <div class="flex items-center gap-2">
-                <template x-if="tournamentType === 'swiss' || match.isRoundRobinGroup || match.isTieBreaker">
+                <template x-if="(tournamentType === 'swiss' && match.p2 !== '輪空 (BYE)') || match.isRoundRobinGroup || match.isTieBreaker">
                   <div class="flex flex-wrap gap-1 justify-end">
                     <template x-for="score in [0,1,2,3,4,5,6]">
                       <button @click="isHost && match.p1 && match.p2 && (match.isRoundRobinGroup || match.isTieBreaker ? setRoundRobinScore(idx, 'p2', score) : setSwissScore(idx, 'p2', score))" :class="match.score2 === score ? 'bg-indigo-600 text-white shadow ring-2 ring-indigo-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'" class="w-8 h-8 rounded text-xs font-bold border border-slate-700 transition" x-text="score"></button>
@@ -240,6 +245,7 @@
                 <th class="p-4">排名</th>
                 <th class="p-4">選手名稱</th>
                 <th class="p-4">勝場</th>
+                <th class="p-4">敗場</th>
                 <th class="p-4">總得分</th>
                 <th class="p-4">Buchholz 小分</th>
               </tr>
@@ -250,6 +256,7 @@
                   <td class="p-4 font-bold text-indigo-400" x-text="rank + 1"></td>
                   <td class="p-4 font-semibold text-slate-100" x-text="p.name"></td>
                   <td class="p-4 text-emerald-400 font-bold" x-text="p.wins"></td>
+                  <td class="p-4 text-rose-400 font-bold" x-text="p.losses || 0"></td>
                   <td class="p-4 text-slate-300" x-text="p.points"></td>
                   <td class="p-4 text-pink-400 font-semibold" x-text="p.buchholz.toFixed(1)"></td>
                 </tr>
@@ -460,7 +467,8 @@
                           losses: p.losses || 0,
                           points: p.points || 0,
                           buchholz: p.buchholz || 0,
-                          opponents: p.opponents || []
+                          opponents: p.opponents || [],
+                          hasBye: p.hasBye || false
                         }));
                         this.currentMatches = data.currentMatches || [];
                         this.bracketHistory = data.bracketHistory || [];
@@ -606,7 +614,8 @@
             losses: 0,
             points: 0,
             buchholz: 0,
-            opponents: []
+            opponents: [],
+            hasBye: false
           }));
           this.currentRound = 1;
           this.bracketHistory = [];
@@ -615,23 +624,161 @@
 
           this.generateFullTournament();
           this.activeTab = 'matches';
-          this.showNotification('賽事已重新設定並生成完整對戰樹狀圖與第一輪賽程！');
+          this.showNotification('賽事已重新設定並生成完整賽程！');
           this.saveToCloud();
+        },
+
+        // 瑞士制配對核心演算法（回溯搜尋：嚴格優先同勝場組配對，並禁止重複對戰）
+        solveSwissPairing(pool, allowRematch = false) {
+          let steps = 0;
+          const maxSteps = 8000;
+
+          const backtrack = (remaining) => {
+            if (remaining.length === 0) return [];
+            if (++steps > maxSteps) return null;
+
+            const p1 = remaining[0];
+            const candidates = [];
+
+            for (let i = 1; i < remaining.length; i++) {
+              const p2 = remaining[i];
+              const isRematch = (p1.opponents || []).includes(p2.name);
+              if (!allowRematch && isRematch) continue;
+              const winDiff = Math.abs((p1.wins || 0) - (p2.wins || 0));
+              candidates.push({ index: i, isRematch, winDiff });
+            }
+
+            // 優先順序：未交手過 > 勝場差距最小（0 表示同勝場組）
+            candidates.sort((a, b) => {
+              if (a.isRematch !== b.isRematch) return a.isRematch ? 1 : -1;
+              return a.winDiff - b.winDiff;
+            });
+
+            for (const cand of candidates) {
+              const p2 = remaining[cand.index];
+              const nextRemaining = remaining.filter((_, idx) => idx !== 0 && idx !== cand.index);
+              const subResult = backtrack(nextRemaining);
+              if (subResult !== null) {
+                return [[p1, p2], ...subResult];
+              }
+            }
+            return null;
+          };
+
+          return backtrack(pool);
         },
 
         generateSwissRound() {
           this.currentMatches = [];
-          const pool = [...this.players].sort(() => Math.random() - 0.5);
-          for (let i = 0; i < pool.length; i += 2) {
+          let pool = [...this.players];
+          let byePlayer = null;
+
+          if (this.currentRound === 1) {
+            // 第一輪：依照目前選手名單順序（可透過設定頁的隨機打亂按鈕調整）進行分桌
+            if (pool.length % 2 === 1) {
+              byePlayer = pool.pop();
+            }
+            for (let i = 0; i < pool.length; i += 2) {
+              const p1 = pool[i];
+              const p2 = pool[i + 1];
+              this.currentMatches.push({
+                id: `swiss_r1_m${i / 2}`,
+                title: `第 1 輪桌次 ${i / 2 + 1}`,
+                bracketTag: '0 勝組對戰',
+                p1: p1.name,
+                p2: p2.name,
+                p1Record: '0勝 0敗',
+                p2Record: '0勝 0敗',
+                score1: 0,
+                score2: 0,
+                winner: null,
+                completed: false
+              });
+            }
+          } else {
+            // 第二輪以後：先處理奇數人數的輪空（優先給予勝場與分數最低且尚未輪空過的選手）
+            if (pool.length % 2 === 1) {
+              const byeCandidates = [...pool].sort((a, b) => {
+                if (Boolean(a.hasBye) !== Boolean(b.hasBye)) return a.hasBye ? 1 : -1;
+                if ((a.wins || 0) !== (b.wins || 0)) return (a.wins || 0) - (b.wins || 0);
+                return (a.points || 0) - (b.points || 0);
+              });
+              byePlayer = byeCandidates[0];
+              pool = pool.filter(p => p.name !== byePlayer.name);
+            }
+
+            // 依勝場數由高到低分組，同勝場組內進行隨機洗牌以保持對戰新鮮感
+            const winGroups = new Map();
+            pool.forEach(p => {
+              const w = p.wins || 0;
+              if (!winGroups.has(w)) winGroups.set(w, []);
+              winGroups.get(w).push(p);
+            });
+
+            const sortedWinKeys = [...winGroups.keys()].sort((a, b) => b - a);
+            const orderedPool = [];
+            sortedWinKeys.forEach(w => {
+              const group = winGroups.get(w);
+              for (let i = group.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [group[i], group[j]] = [group[j], group[i]];
+              }
+              orderedPool.push(...group);
+            });
+
+            // 執行回溯配對：優先完全避免重複對戰；僅在數學上無解（例如輪數大於人數）時才啟用最小重複容錯
+            let pairs = this.solveSwissPairing(orderedPool, false);
+            if (!pairs) {
+              pairs = this.solveSwissPairing(orderedPool, true) || [];
+            }
+
+            // 將對戰組依雙方總勝場由高到低排列（高勝場組排在前面的桌次）
+            pairs.sort((a, b) => {
+              const maxWinA = Math.max(a[0].wins || 0, a[1].wins || 0);
+              const maxWinB = Math.max(b[0].wins || 0, b[1].wins || 0);
+              if (maxWinB !== maxWinA) return maxWinB - maxWinA;
+              return ((b[0].wins || 0) + (b[1].wins || 0)) - ((a[0].wins || 0) + (a[1].wins || 0));
+            });
+
+            pairs.forEach(([p1, p2], idx) => {
+              const w1 = p1.wins || 0;
+              const l1 = p1.losses || 0;
+              const w2 = p2.wins || 0;
+              const l2 = p2.losses || 0;
+              const bracketTag = w1 === w2 ? `${w1} 勝組對戰` : `跨組對戰 (${w1}勝 vs ${w2}勝)`;
+
+              this.currentMatches.push({
+                id: `swiss_r${this.currentRound}_m${idx}`,
+                title: `第 ${this.currentRound} 輪桌次 ${idx + 1}`,
+                bracketTag,
+                p1: p1.name,
+                p2: p2.name,
+                p1Record: `${w1}勝 ${l1}敗`,
+                p2Record: `${w2}勝 ${l2}敗`,
+                score1: 0,
+                score2: 0,
+                winner: null,
+                completed: false
+              });
+            });
+          }
+
+          // 若有奇數輪空選手，排在最後一桌自動勝出
+          if (byePlayer) {
+            const w = byePlayer.wins || 0;
+            const l = byePlayer.losses || 0;
             this.currentMatches.push({
-              id: `swiss_r${this.currentRound}_m${i/2}`,
-              title: `第 ${this.currentRound} 輪桌次 ${i/2 + 1}`,
-              p1: pool[i].name,
-              p2: pool[i+1] ? pool[i+1].name : '輪空 (BYE)',
+              id: `swiss_r${this.currentRound}_bye`,
+              title: `第 ${this.currentRound} 輪桌次 ${this.currentMatches.length + 1}`,
+              bracketTag: '輪空晉級',
+              p1: byePlayer.name,
+              p2: '輪空 (BYE)',
+              p1Record: `${w}勝 ${l}敗`,
+              p2Record: '',
               score1: 0,
               score2: 0,
-              winner: pool[i+1] ? null : pool[i].name,
-              completed: !pool[i+1]
+              winner: byePlayer.name,
+              completed: true
             });
           }
         },
@@ -639,18 +786,13 @@
         setSwissScore(matchIndex, playerKey, score) {
           if (!this.isHost) return;
           const match = this.currentMatches[matchIndex];
+          if (match.p2 === '輪空 (BYE)') return;
+
           if (playerKey === 'p1') match.score1 = score;
           if (playerKey === 'p2') match.score2 = score;
 
           if (match.score1 !== undefined && match.score2 !== undefined) {
             match.completed = true;
-            const p1Obj = this.players.find(p => p.name === match.p1);
-            const p2Obj = this.players.find(p => p.name === match.p2);
-            if (p1Obj && p2Obj && match.p2 !== '輪空 (BYE)') {
-              if (!p1Obj.opponents.includes(match.p2)) p1Obj.opponents.push(match.p2);
-              if (!p2Obj.opponents.includes(match.p1)) p2Obj.opponents.push(match.p1);
-            }
-
             if (match.score1 > match.score2) match.winner = match.p1;
             else if (match.score2 > match.score1) match.winner = match.p2;
             else match.winner = '平手';
@@ -944,18 +1086,35 @@
             this.bracketHistory.push(JSON.parse(JSON.stringify(this.currentMatches)));
             this.currentMatches.forEach(m => {
               const p1Obj = this.players.find(p => p.name === m.p1);
-              const p2Obj = this.players.find(p => p.name === m.p2);
+              const p2Obj = m.p2 && m.p2 !== '輪空 (BYE)' ? this.players.find(p => p.name === m.p2) : null;
+
               if (p1Obj) {
                 if (p1Obj.points === undefined) p1Obj.points = 0;
+                if (!p1Obj.opponents) p1Obj.opponents = [];
                 if (m.score1 !== undefined) p1Obj.points += m.score1;
               }
               if (p2Obj) {
                 if (p2Obj.points === undefined) p2Obj.points = 0;
+                if (!p2Obj.opponents) p2Obj.opponents = [];
                 if (m.score2 !== undefined) p2Obj.points += m.score2;
               }
 
-              if (m.winner === m.p1 && p1Obj) p1Obj.wins = (p1Obj.wins || 0) + 1;
-              if (m.winner === m.p2 && p2Obj) p2Obj.wins = (p2Obj.wins || 0) + 1;
+              // 結算時精準記錄已交手過的對手，避免後續輪次重複對戰
+              if (m.p2 === '輪空 (BYE)' && p1Obj) {
+                p1Obj.hasBye = true;
+              } else if (p1Obj && p2Obj) {
+                if (!p1Obj.opponents.includes(p2Obj.name)) p1Obj.opponents.push(p2Obj.name);
+                if (!p2Obj.opponents.includes(p1Obj.name)) p2Obj.opponents.push(p1Obj.name);
+              }
+
+              // 結算勝場與敗場
+              if (m.winner === m.p1 && p1Obj) {
+                p1Obj.wins = (p1Obj.wins || 0) + 1;
+                if (p2Obj) p2Obj.losses = (p2Obj.losses || 0) + 1;
+              } else if (m.winner === m.p2 && p2Obj) {
+                p2Obj.wins = (p2Obj.wins || 0) + 1;
+                if (p1Obj) p1Obj.losses = (p1Obj.losses || 0) + 1;
+              }
             });
 
             this.currentRound++;
